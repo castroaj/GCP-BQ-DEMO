@@ -6,7 +6,7 @@ A **strictly non-production prototype** that explores BigQuery and Cloud Run for
 
 ## Purpose
 
-- A BigQuery table of phone **Calls** (`telecom_analytics.calls`), seeded with generated data and later managed by Flyway.
+- A BigQuery table of phone **Calls** (`telecom_analytics.calls`), seeded with generated data and created by Flyway, which runs as a Cloud Run job.
 - A stateless Cloud Run API (Spring Boot, Java 21) that turns structured requests into parameterized BigQuery jobs: `POST` submits a lookup and returns a job id, and `GET` fetches the result by that id. The API keeps no state; the BigQuery job is the state.
 
 ## Architecture
@@ -42,7 +42,7 @@ flowchart LR
   bq[("BigQuery<br/>telecom_analytics.calls")]
   gcs[("GCS bucket<br/>&lt;project_id&gt;-loads")]
   gen["data-generator<br/>load_range.sh"]
-  flyway["Flyway<br/>flywayMigrate"]
+  flyway["Flyway Cloud Run job<br/>flywayMigrate, flyway SA"]
   deploy["gcloud run deploy<br/>--source"]
 
   client -->|"POST /api/v1/query, then<br/>GET /api/v1/query/{jobId}<br/>identity token"| api
@@ -64,7 +64,7 @@ flowchart LR
 
 ### Provisioning
 
-`terraform apply` creates the throwaway project and everything around it; the `calls` table and the Cloud Run service are not Terraform's. Details: [docs/gcp/terraform.md](docs/gcp/terraform.md).
+`terraform apply` creates the throwaway project and everything around it, builds the Flyway image and runs the Flyway Cloud Run job, which creates the `calls` table. The API's Cloud Run service is not Terraform's. Details: [docs/gcp/terraform.md](docs/gcp/terraform.md).
 
 ```mermaid
 flowchart TD
@@ -77,11 +77,12 @@ flowchart TD
     bucket[("GCS bucket<br/>&lt;project_id&gt;-loads")]
     sa_api{{"calls-api<br/>service account"}}
     sa_fly{{"flyway<br/>service account"}}
+    repo{{"Artifact Registry repo<br/>flyway"}}
+    job("Flyway Cloud Run job<br/>image pinned by digest")
   end
 
   subgraph other["Not managed by Terraform"]
-    flyway["Flyway"]
-    table[("calls table")]
+    table[("calls table<br/>owned by Flyway")]
     deploy["gcloud run deploy<br/>--source"]
     api("Calls API")
   end
@@ -94,7 +95,12 @@ flowchart TD
   project -.-> sa_fly
   sa_api -.->|"jobUser (project)<br/>dataViewer (dataset)"| ds
   sa_fly -.->|"jobUser (project)<br/>dataEditor (dataset)"| ds
-  flyway -.->|creates| table
+  project -.-> repo
+  tf -.->|"gcloud builds submit<br/>pushes image"| repo
+  repo -.->|"image"| job
+  sa_fly -.->|"runs as, reader on repo"| job
+  tf -.->|"executes after dataset<br/>and IAM exist"| job
+  job -.->|creates| table
   ds --- table
   deploy -.->|deploys| api
 
@@ -102,10 +108,10 @@ flowchart TD
   classDef compute fill:#d3ecd3,stroke:#555,color:#1a1a1a
   classDef store fill:#f6e3a1,stroke:#555,color:#1a1a1a
   classDef resource fill:#e3d5ee,stroke:#555,color:#1a1a1a
-  class tf,flyway,deploy tool
-  class api compute
+  class tf,deploy tool
+  class api,job compute
   class bucket,table store
-  class project,apis,ds,sa_api,sa_fly resource
+  class project,apis,ds,sa_api,sa_fly,repo resource
 ```
 
 ### Client request flow
@@ -140,14 +146,14 @@ sequenceDiagram
 
 ## Status
 
-Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). The build is tracked in a second GitHub issue map (label `wayfinder:map`). Built so far: Terraform, the Flyway V1 migration and the seed data generator.
+Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). The build is tracked in a second GitHub issue map (label `wayfinder:map`). Built so far: Terraform, the Flyway V1 migration and its Cloud Run job and the seed data generator.
 
 ## Planned layout
 
 | Path | Contents |
 |---|---|
 | `api/` | Spring Boot API (Gradle, single module) |
-| `flyway/` | Flyway Gradle project and `sql/V1__create_calls.sql` |
+| `flyway/` | Flyway Gradle project, `sql/V1__create_calls.sql` and the `Dockerfile` for the Cloud Run job |
 | `data-generator/` | Python generator and loader for synthetic Calls (Parquet) |
 | `terraform/` | Terraform for the throwaway GCP project |
 | `docs/gcp/` | GCP project and service account setup |

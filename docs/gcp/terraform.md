@@ -10,7 +10,9 @@ Creates and destroys the whole throwaway GCP project with Terraform (`terraform/
 - GCS bucket `<project_id>-loads` for Parquet loads (`force_destroy`)
 - Service accounts `calls-api` (project `jobUser`, dataset `dataViewer`) and `flyway` (project `jobUser`, dataset `dataEditor`)
 
-Not managed: the `calls` table (Flyway V1), the Cloud Run service (`gcloud run deploy --source`), and the Flyway key file.
+- Artifact Registry repo `flyway`, the Flyway image (built with `gcloud builds submit`, pinned by digest) and the Cloud Run job `flyway`, which runs as the `flyway` account. Terraform executes the job after the dataset and IAM exist, so a fresh apply ends with the `calls` table (see [flyway-service-account.md](flyway-service-account.md#flyway-as-a-cloud-run-job)).
+
+Not managed: the `calls` table contents (Flyway owns them), the Cloud Run service (`gcloud run deploy --source`), and the Flyway key file.
 
 ## Prerequisites
 
@@ -27,6 +29,8 @@ terraform init
 terraform apply
 ```
 
+The apply also builds the Flyway image in Cloud Build and runs the migration job, so it takes a few minutes longer. It needs `gcloud` logged in (`gcloud auth login`) because those two steps shell out to it.
+
 State is local and gitignored (`*.tfstate*`). If you lose it, fall back to `gcloud projects delete <project_id>`.
 
 ## Outputs / deploy wiring
@@ -39,7 +43,9 @@ terraform -chdir=terraform output -raw bucket_name
 
 Use these in `gcloud run deploy --project ... --service-account ...`; there is no wrapper script.
 
-## Flyway key
+## Flyway key (optional)
+
+Only needed to run Flyway from your machine; the Cloud Run job needs no key.
 
 Terraform creates the service account and roles but not the key, so the key stays out of state:
 

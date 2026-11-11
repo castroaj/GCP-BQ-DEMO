@@ -36,6 +36,10 @@ _Avoid_: phoneNumber, msisdn, party
 A lookup of the Calls of one telephoneNumber in a time range, submitted to run in the background and fetched later by its Job id. It is pending, running, done or failed.
 _Avoid_: query, request, task
 
+**Flyway job**:
+The Cloud Run job that applies the Flyway migrations to the dataset as the `flyway` service account. Terraform builds its image and runs it on apply.
+_Avoid_: Job (that word means a lookup, above), migration job
+
 **Job id**:
 The identifier the API gives a Job when it is submitted; the only thing a client needs to fetch the Job's result.
 _Avoid_: queryId, ticket, token

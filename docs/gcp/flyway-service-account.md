@@ -79,6 +79,31 @@ bq --project_id=$P show --format=prettyjson flyway_spike | grep -B1 -A1 "flyway@
 
 The first shows `roles/bigquery.jobUser`. The second shows the dataset grant from step 1.
 
+## Flyway as a Cloud Run job
+
+`terraform apply` runs the migration inside GCP as the `flyway` account, with no key file and no local Gradle ([#44](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/44), which folds in #18).
+
+| Piece | How |
+|---|---|
+| Image | `flyway/Dockerfile`: JDK 21, the Gradle project and `sql/`, entrypoint `./gradlew --no-daemon flywayMigrate`. A pre-warm `./gradlew help` layer caches the Gradle and Flyway downloads. |
+| Build | `terraform_data.flyway_build` runs `gcloud builds submit flyway/` (Cloud Build, no local Docker) into the Terraform-managed Artifact Registry repo `flyway`, tagged with a hash of the Dockerfile, Gradle files and `sql/*`. |
+| Job | `google_cloud_run_v2_job.flyway`, image pinned by digest, env `PROJECT` and `DATASET`, runs as `flyway` (reader on the repo only). ADC comes from the attached account. |
+| Trigger | `terraform_data.flyway_migrate` executes the job after the dataset, the `flyway` IAM bindings and the job exist. Terraform owns the first migration. |
+
+On a fresh project the build step retries for about five minutes: the owner grant and API enablement can take that long to propagate, and until then `gcloud builds submit` fails with `PERMISSION_DENIED ... serviceUsageConsumer`.
+
+A new migration reaches the job by editing `flyway/sql/` and running `terraform apply`: the hash changes, the image is rebuilt, the new digest changes the job and re-triggers the execution. A second run with nothing pending is a no-op. Re-run by hand with:
+
+```sh
+gcloud run jobs execute flyway --wait \
+  --project "$(terraform -chdir=terraform output -raw project_id)" \
+  --region "$(terraform -chdir=terraform output -raw region)"
+```
+
+Destroy needs no ordering: deleting the project removes the job, repo and image. A workflow ([#31](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/31)) should execute this same job rather than run Gradle itself.
+
+Verify: `bq --project_id=$P query --use_legacy_sql=false 'SELECT version, success FROM telecom_analytics.flyway_schema_history'` lists `1` and `true`.
+
 ## Key file vs ADC
 
 Flyway can authenticate two ways. Both were tested in the Flyway spike (#11) against `flyway_spike` with Google's Maven-published JDBC driver.

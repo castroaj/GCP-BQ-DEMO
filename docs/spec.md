@@ -13,8 +13,8 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 
 | Path | Contents |
 |---|---|
-| `terraform/` | Project, APIs, dataset, bucket, service accounts |
-| `flyway/` | Own Gradle project (wrapper committed) with `sql/V1__create_calls.sql` |
+| `terraform/` | Project, APIs, dataset, bucket, service accounts, Flyway image repo, Cloud Run job and its execution |
+| `flyway/` | Own Gradle project (wrapper committed) with `sql/V1__create_calls.sql` and the `Dockerfile` for the Cloud Run job |
 | `data-generator/` | `generate.py`, `load_range.sh`, `requirements.txt` |
 | `api/` | Spring Boot, single-module Gradle |
 | `docs/gcp/` | Setup docs (Terraform path and the older manual path) |
@@ -25,7 +25,8 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 - Terraform in `terraform/` creates and destroys the whole throwaway project: project id `telecom-demo-<random hex>` (deleted ids are never reusable), billing link, APIs (BigQuery, Cloud Run, Artifact Registry, Cloud Build), the empty `telecom_analytics` dataset (location `US`), the GCS bucket `<project_id>-loads`, and the `calls-api` and `flyway` service accounts with their IAM.
 - Cloud Run region `us-east4`.
 - State is local and gitignored; secrets come from an untracked `terraform.tfvars`. `terraform destroy` removes everything in one pass.
-- Not managed by Terraform: the `calls` table (Flyway) and the Cloud Run service (`gcloud run deploy --source`).
+- The Flyway Cloud Run job and its image (Artifact Registry repo, Cloud Build) are managed by Terraform, which executes the job so a fresh apply creates the `calls` table.
+- Not managed by Terraform: the `calls` table itself (Flyway) and the Cloud Run service (`gcloud run deploy --source`).
 - Scripts take `PROJECT`, `BUCKET` and `DATASET` environment variables, set from `terraform -chdir=terraform output -raw project_id | bucket_name | dataset_id`. No wrapper script.
 - Details: [docs/gcp/terraform.md](gcp/terraform.md).
 
@@ -41,8 +42,9 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 
 - Flyway owns table creation. `V1__create_calls.sql` creates `calls` from the schema above. There is no manual `bq` table.
 - Wiring: Gradle plugin `org.flywaydb.flyway` 13.12.1, with `flyway-gcp-bigquery` and Google's Maven-published `google-cloud-bigquery-jdbc:1.9.0:all` on the buildscript classpath. The driver class must be set explicitly (`com.google.cloud.bigquery.jdbc.BigQueryDriver`) and the JDBC URL needs `EnableSession=1`.
-- Auth: Application Default Credentials (`OAuthType=3`). It runs as the human user. Moving to the `flyway` service account is a follow-up ([#17](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/17)).
-- Run by hand after `terraform apply`: `gcloud auth application-default set-quota-project $PROJECT`, `./gradlew --stop`, then `./gradlew flywayMigrate`. The stale quota project and the cached Gradle daemon are the usual failure. Terraform-triggered Flyway is a follow-up ([#18](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/18)).
+- Auth: Application Default Credentials (`OAuthType=3`). Locally it runs as the human user; in the Cloud Run job it runs as the `flyway` service account with no key file.
+- Cloud Run job ([#44](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/44), folds in #18): `flyway/Dockerfile` bundles the Gradle project and `sql/`. Terraform builds it with `gcloud builds submit` into the Artifact Registry repo `flyway` (tag = content hash), pins the job to the image digest and executes the job after the dataset and IAM exist. A changed migration changes the hash and digest, which re-triggers the job; a run with nothing pending is a no-op. Terraform owns the first migration; a later workflow ([#31](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/31)) should execute the same job.
+- Manual run, still supported: `gcloud auth application-default set-quota-project $PROJECT`, `./gradlew --stop`, then `./gradlew flywayMigrate`. The stale quota project and the cached Gradle daemon are the usual failure. See [docs/gcp/flyway-service-account.md](gcp/flyway-service-account.md#flyway-as-a-cloud-run-job).
 - No DDL transactions: a failed migration can leave partial changes. `flyway_schema_history` lives in the dataset.
 - Fallback, documented only: adopt a hand-made table with `flywayBaseline` and `baselineVersion=1` (verified in the spike).
 - Details: [docs/gcp/flyway-service-account.md](gcp/flyway-service-account.md).
@@ -77,7 +79,7 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 ## Build order
 
 1. `terraform apply`.
-2. Flyway: V1, ADC quota project, `./gradlew --stop`, `flywayMigrate`; check the table matches the schema.
+2. Flyway: `terraform apply` already ran the job; check `flyway_schema_history` and that the table matches the schema (manual path: ADC quota project, `./gradlew --stop`, `flywayMigrate`).
 3. Generator and `load_range.sh` for one day; check 1M rows and the needle counts.
 4. API: hello-world `GET /health` buildpack deploy.
 5. API: `POST /api/v1/query` and `GET /api/v1/query/{jobId}`, tested on the seeded day with the needle numbers.
@@ -86,4 +88,4 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 
 ## Follow-ups outside the prototype
 
-- [#9](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/9) research alternative Java frameworks, [#10](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/10) Dockerfile deploy, [#17](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/17) Flyway on the service account, [#18](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/18) Terraform runs Flyway.
+- [#9](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/9) research alternative Java frameworks, [#10](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/10) Dockerfile deploy (done: [#17](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/17) Flyway on the service account and [#18](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/18) Terraform runs Flyway, both via [#44](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/44)).

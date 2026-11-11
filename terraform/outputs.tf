@@ -33,3 +33,8 @@ output "calls_api_service_account_email" {
 output "flyway_service_account_email" {
   value = google_service_account.flyway.email
 }
+
+# For `gcloud run jobs execute` after adding a migration by hand.
+output "flyway_job_name" {
+  value = google_cloud_run_v2_job.flyway.name
+}
