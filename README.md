@@ -28,7 +28,7 @@ Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). 
 
 `GET /api/v1/query` with `telephoneNumber`, `startDatetime`, `endDatetime`; `GET /health`.
 
-_Usage examples to be added once the API exists._
+Usage examples, parameters, response and error shapes: [docs/api-usage.md](docs/api-usage.md). Deploy and teardown: [docs/gcp/api-deployment.md](docs/gcp/api-deployment.md).
 
 ## Setup
 

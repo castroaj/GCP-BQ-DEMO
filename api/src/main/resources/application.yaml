@@ -5,3 +5,6 @@ management:
       base-path: /
       exposure:
         include: health
+
+calls:
+  dataset: ${DATASET:telecom_analytics}
