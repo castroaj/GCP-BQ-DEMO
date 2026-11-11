@@ -1,13 +1,21 @@
 package com.example.calls.api.query;
 
 import com.example.calls.api.ApiException;
+import com.example.calls.api.query.dto.JobResponse;
+import com.example.calls.api.query.dto.SubmitRequest;
+import com.example.calls.api.query.dto.SubmitResponse;
+import com.example.calls.api.query.model.CallQuery;
+import java.net.URI;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * HTTP entry point for looking up Calls. It only reads the request and delegates: validation lives
+ * HTTP entry point for looking up Calls asynchronously: submit a lookup, then fetch it by job id. It only reads the request and delegates: validation lives
  * in {@link CallQuery} and the BigQuery work in {@link CallsQueryService}.
  */
 @RestController
@@ -25,27 +33,41 @@ public class CallsController {
   }
 
   /**
-   * Returns the Calls of one number in a time range, {@code GET /api/v1/query}.
+   * Submits a lookup of one number in a time range, {@code POST /api/v1/query}.
    *
-   * <p>The parameters are read as raw strings so that {@link CallQuery#parse} owns validation and
-   * the error codes. All three are required. The names are given explicitly so binding does not
-   * depend on the compiler's {@code -parameters} flag, which IDE builds such as VS Code's Eclipse
-   * compiler do not set.
+   * <p>The values are validated as {@link CallQuery#parse} defines, then run as a BigQuery job.
+   * The call returns as soon as the job exists; fetch the Calls with {@link #result(String)}.
    *
-   * @param telephoneNumber E.164 digits without the leading {@code +}; matches {@code calling} or
-   *     {@code called}
-   * @param startDatetime ISO 8601 with an explicit UTC offset, inclusive start
-   * @param endDatetime ISO 8601 with an explicit UTC offset, exclusive end
-   * @return up to 1,000 matching Calls, with {@code truncated} set when more matched
-   * @throws ApiException with status 400 if a parameter is missing, malformed or the range is
-   *     invalid, or 502 if BigQuery fails; both are rendered as problem details by {@link
+   * @param request the lookup; all three fields are required
+   * @return {@code 202 Accepted} with the job id and a {@code Location} header pointing at the
+   *     result
+   * @throws ApiException with status 400 if a field is missing, malformed or the range is invalid,
+   *     or 502 if BigQuery rejects the job; both are rendered as problem details by {@link
    *     com.example.calls.api.ApiExceptionHandler}
    */
-  @GetMapping("/query")
-  public QueryResponse query(
-      @RequestParam(name = "telephoneNumber", required = false) String telephoneNumber,
-      @RequestParam(name = "startDatetime", required = false) String startDatetime,
-      @RequestParam(name = "endDatetime", required = false) String endDatetime) {
-    return service.query(CallQuery.parse(telephoneNumber, startDatetime, endDatetime));
+  @PostMapping("/query")
+  public ResponseEntity<SubmitResponse> submit(@RequestBody SubmitRequest request) {
+    String jobId =
+        service.submit(
+            CallQuery.parse(
+                request.telephoneNumber(), request.startDatetime(), request.endDatetime()));
+    return ResponseEntity.accepted()
+        .location(URI.create("/api/v1/query/" + jobId))
+        .body(new SubmitResponse(jobId));
+  }
+
+  /**
+   * Returns the state of a submitted lookup and, once done, its Calls, {@code GET
+   * /api/v1/query/{jobId}}.
+   *
+   * @param jobId the id returned by {@link #submit(SubmitRequest)}
+   * @return the job's status; up to 1,000 matching Calls with {@code truncated} when {@code DONE},
+   *     or an {@code error} when {@code FAILED}
+   * @throws ApiException with status 404 if the id is not one of this API's job ids or the job
+   *     does not exist or has expired, or 502 if BigQuery fails
+   */
+  @GetMapping("/query/{jobId}")
+  public JobResponse result(@PathVariable("jobId") String jobId) {
+    return service.find(jobId);
   }
 }

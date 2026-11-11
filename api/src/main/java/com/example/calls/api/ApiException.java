@@ -22,6 +22,8 @@ public class ApiException extends RuntimeException {
     INVALID_PARAMETER(HttpStatus.BAD_REQUEST, "Invalid parameter"),
     /** The requested time range is empty or reversed. */
     INVALID_RANGE(HttpStatus.BAD_REQUEST, "Invalid range"),
+    /** The requested job does not exist, has expired, or is not one of this API's jobs. */
+    NOT_FOUND(HttpStatus.NOT_FOUND, "Not found"),
     /** BigQuery failed or did not answer. */
     UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY, "Upstream error"),
     /** Anything unexpected. */
@@ -40,7 +42,7 @@ public class ApiException extends RuntimeException {
      *
      * @return the response status
      */
-    HttpStatus status() {
+    public HttpStatus status() {
       return status;
     }
 
@@ -49,7 +51,7 @@ public class ApiException extends RuntimeException {
      *
      * @return the problem {@code title}
      */
-    String title() {
+    public String title() {
       return title;
     }
   }

@@ -1,4 +1,4 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.model;
 
 import java.math.BigDecimal;
 

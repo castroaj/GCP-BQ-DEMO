@@ -8,3 +8,4 @@ management:
 
 calls:
   dataset: ${DATASET:telecom_analytics}
+  location: ${DATASET_LOCATION:US}

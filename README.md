@@ -7,7 +7,7 @@ A **strictly non-production prototype** that explores BigQuery and Cloud Run for
 ## Purpose
 
 - A BigQuery table of phone **Calls** (`telecom_analytics.calls`), seeded with generated data and later managed by Flyway.
-- A stateless Cloud Run API (Spring Boot, Java 21) that turns structured requests into parameterized BigQuery queries and returns results synchronously.
+- A stateless Cloud Run API (Spring Boot, Java 21) that turns structured requests into parameterized BigQuery jobs: `POST` submits a lookup and returns a job id, and `GET` fetches the result by that id. The API keeps no state; the BigQuery job is the state.
 
 ## Architecture
 
@@ -45,8 +45,8 @@ flowchart LR
   flyway["Flyway<br/>flywayMigrate"]
   deploy["gcloud run deploy<br/>--source"]
 
-  client -->|"GET /api/v1/query<br/>identity token"| api
-  api -->|"parameterized query<br/>as calls-api SA"| bq
+  client -->|"POST /api/v1/query, then<br/>GET /api/v1/query/{jobId}<br/>identity token"| api
+  api -->|"creates and reads query jobs<br/>as calls-api SA"| bq
   gen -->|"upload Parquet shards"| gcs
   gcs -->|"LOAD DATA, then shards deleted"| bq
   flyway -->|"V1 creates the calls table"| bq
@@ -110,7 +110,7 @@ flowchart TD
 
 ### Client request flow
 
-A lookup is one synchronous request. Validation errors never reach BigQuery.
+A lookup is two requests: submit it, then poll for the result by job id. Validation errors never reach BigQuery. The API keeps no state between the requests, so either one can be served by any instance; the job id is the BigQuery job id.
 
 ```mermaid
 sequenceDiagram
@@ -118,13 +118,23 @@ sequenceDiagram
   participant API as Calls API
   participant BQ as BigQuery
 
-  Client->>API: GET /api/v1/query<br/>telephoneNumber, startDatetime, endDatetime<br/>(Bearer identity token)
-  alt parameters valid
-    API->>BQ: parameterized query on telecom_analytics.calls<br/>(as calls-api service account)
-    BQ-->>API: matching Calls
-    API-->>Client: 200 JSON { count, truncated, calls[] }<br/>at most 1,000 Calls
-  else missing or malformed parameter, or invalid range
+  Client->>API: POST /api/v1/query<br/>{ telephoneNumber, startDatetime, endDatetime }<br/>(Bearer identity token)
+  alt fields valid
+    API->>BQ: create query job calls-query-UUID<br/>(as calls-api service account)
+    API-->>Client: 202 { jobId } and Location header
+  else missing or malformed field, or invalid range
     API-->>Client: 400 application/problem+json<br/>{ code: MISSING_PARAMETER | INVALID_PARAMETER | INVALID_RANGE }
+  end
+
+  loop until DONE or FAILED
+    Client->>API: GET /api/v1/query/{jobId}
+    alt job id not ours, unknown or expired
+      API-->>Client: 404 application/problem+json { code: NOT_FOUND }
+    else job exists
+      API->>BQ: get job and, when finished, its rows
+      BQ-->>API: status and matching Calls
+      API-->>Client: 200 { status: PENDING | RUNNING }<br/>or DONE with { count, truncated, calls[] }<br/>or FAILED with { error }
+    end
   end
 ```
 
@@ -145,7 +155,7 @@ Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). 
 
 ## API
 
-`GET /api/v1/query` with `telephoneNumber`, `startDatetime`, `endDatetime`; `GET /health`.
+`POST /api/v1/query` with `telephoneNumber`, `startDatetime`, `endDatetime` submits a lookup and returns a job id; `GET /api/v1/query/{jobId}` fetches its status and result; `GET /health`. Why it is asynchronous: [docs/adr/0001-async-query-via-bigquery-job-id.md](docs/adr/0001-async-query-via-bigquery-job-id.md).
 
 Usage examples, parameters, response and error shapes: [docs/api-usage.md](docs/api-usage.md). Deploy and teardown: [docs/gcp/api-deployment.md](docs/gcp/api-deployment.md).
 

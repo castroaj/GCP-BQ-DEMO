@@ -6,7 +6,8 @@ How to call the Calls API. The contract is in [spec.md](spec.md#api-6-8-4); depl
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/v1/query` | Calls of one number in a time range |
+| `POST /api/v1/query` | Submit a lookup of one number in a time range; returns a job id |
+| `GET /api/v1/query/{jobId}` | Status of a lookup and, when done, its Calls |
 | `GET /health` | Spring Boot Actuator health, `{"status":"UP"}` |
 
 ## Calling a private Cloud Run service
@@ -20,29 +21,51 @@ URL=$(gcloud run services describe calls-api --project "$PROJECT" --region "$REG
 TOKEN=$(gcloud auth print-identity-token)
 ```
 
-## `GET /api/v1/query`
+A lookup is two calls: submit it, then poll for the result with the job id. The job id is a BigQuery job id, so any instance can answer; jobs expire after about 24 hours.
 
-All three parameters are required.
+## `POST /api/v1/query`
 
-| Parameter | Format |
+Send a JSON body. All three fields are required.
+
+| Field | Format |
 |---|---|
 | `telephoneNumber` | E.164 digits without the leading `+`, e.g. `15551234567`; matches Calls where `calling` or `called` equals it |
 | `startDatetime` | ISO 8601 with an explicit UTC offset (`Z` or `+hh:mm`), inclusive |
 | `endDatetime` | ISO 8601 with an explicit UTC offset, exclusive, after `startDatetime` |
 
 ```sh
-curl -s -G -H "Authorization: Bearer $TOKEN" "$URL/api/v1/query" \
-  --data-urlencode telephoneNumber=15550100025 \
-  --data-urlencode startDatetime=2026-01-15T00:00:00Z \
-  --data-urlencode endDatetime=2026-01-16T00:00:00Z
+curl -s -i -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  "$URL/api/v1/query" \
+  -d '{"telephoneNumber":"15550100025","startDatetime":"2026-01-15T00:00:00Z","endDatetime":"2026-01-16T00:00:00Z"}'
+```
+
+### Response (`202 Accepted`)
+
+`{ "jobId": "calls-query-<uuid>" }` and a `Location: /api/v1/query/{jobId}` header.
+
+## `GET /api/v1/query/{jobId}`
+
+```sh
+JOB_ID=calls-query-123e4567-e89b-12d3-a456-426614174000
+curl -s -H "Authorization: Bearer $TOKEN" "$URL/api/v1/query/$JOB_ID"
 ```
 
 ### Response (`200`)
 
-`{ telephoneNumber, startDatetime, endDatetime, count, truncated, calls[] }`. Each call has all 20 columns (camelCase, nulls as JSON `null`, timestamps in UTC ISO 8601), sorted by `offhookDatetime` then `callId`. At most 1,000 calls are returned; `truncated` is `true` when more matched. An empty result is `200` with `count: 0`.
+Always `{ jobId, status }`, where `status` is one of:
+
+| `status` | Body |
+|---|---|
+| `PENDING`, `RUNNING` | nothing more; poll again |
+| `DONE` | the result below |
+| `FAILED` | `error: { status, title, detail, code }`, a generic Problem-Details-shaped error; BigQuery details go to the server log |
+
+A `DONE` response adds `{ telephoneNumber, startDatetime, endDatetime, count, truncated, calls[] }`. Each call has all 20 columns (camelCase, nulls as JSON `null`, timestamps in UTC ISO 8601), sorted by `offhookDatetime` then `callId`. At most 1,000 calls are returned; `truncated` is `true` when more matched. An empty result is `200` with `count: 0`.
 
 ```json
 {
+  "jobId": "calls-query-123e4567-e89b-12d3-a456-426614174000",
+  "status": "DONE",
   "telephoneNumber": "15550100001",
   "startDatetime": "2026-01-15T00:00:00Z",
   "endDatetime": "2026-01-16T00:00:00Z",
@@ -77,7 +100,7 @@ curl -s -G -H "Authorization: Bearer $TOKEN" "$URL/api/v1/query" \
 
 ### Test numbers on a seeded day
 
-The data generator adds fixed numbers a known number of times on every generated day ([spec.md](spec.md#seed-data-7)). Querying one seeded day gives:
+The data generator adds fixed numbers a known number of times on every generated day ([spec.md](spec.md#seed-data-7)). Looking up one seeded day gives:
 
 | `telephoneNumber` | `count` | `truncated` |
 |---|---|---|
@@ -92,9 +115,10 @@ Errors are RFC 9457 Problem Details (`application/problem+json`) with a machine-
 
 | Status | `code` | Cause |
 |---|---|---|
-| `400` | `MISSING_PARAMETER` | a required parameter is absent |
+| `400` | `MISSING_PARAMETER` | a required field is absent |
 | `400` | `INVALID_PARAMETER` | a malformed number, or a datetime without an offset |
 | `400` | `INVALID_RANGE` | `endDatetime` is not after `startDatetime` |
+| `404` | `NOT_FOUND` | on `GET`: the id is not a `calls-query-<uuid>` id, or the job is unknown or expired |
 | `502` | `UPSTREAM_ERROR` | BigQuery failed |
 | `500` | `INTERNAL_ERROR` | anything unexpected |
 
