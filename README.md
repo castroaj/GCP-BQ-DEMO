@@ -28,7 +28,16 @@ Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). 
 
 `GET /api/v1/query` with `telephoneNumber`, `startDatetime`, `endDatetime`; `GET /health`.
 
-_Usage examples to be added once the API exists._
+Example against a private Cloud Run service (`URL` from `gcloud run services describe calls-api --format='value(status.url)'`):
+
+```sh
+curl -s -G -H "Authorization: Bearer $(gcloud auth print-identity-token)" "$URL/api/v1/query" \
+  --data-urlencode telephoneNumber=15550100025 \
+  --data-urlencode startDatetime=2026-01-15T00:00:00Z \
+  --data-urlencode endDatetime=2026-01-16T00:00:00Z
+```
+
+Returns `{ telephoneNumber, startDatetime, endDatetime, count, truncated, calls[] }` (at most 1,000 calls, sorted by `offhookDatetime` then `callId`). Errors are `{ "error": CODE, "message": ... }` with `400` for bad parameters and `502` for BigQuery failures. Deploy and teardown: [docs/gcp/api-deployment.md](docs/gcp/api-deployment.md).
 
 ## Setup
 
