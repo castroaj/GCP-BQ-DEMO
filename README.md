@@ -11,13 +11,14 @@ A **strictly non-production prototype** that explores BigQuery and Cloud Run for
 
 ## Status
 
-Planning. Decisions are tracked in the GitHub issue map (label `wayfinder:map`); the prototype itself is not built yet.
+Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). The build is tracked in a second GitHub issue map (label `wayfinder:map`). Built so far: Terraform and the Flyway V1 migration.
 
 ## Planned layout
 
 | Path | Contents |
 |---|---|
 | `api/` | Spring Boot API (Gradle, single module) |
+| `flyway/` | Flyway Gradle project and `sql/V1__create_calls.sql` |
 | `data-generator/` | Python generator for synthetic Calls (Parquet) |
 | `terraform/` | Terraform for the throwaway GCP project |
 | `docs/gcp/` | GCP project and service account setup |
