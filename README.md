@@ -71,18 +71,24 @@ flowchart TD
   subgraph managed["Managed by Terraform"]
     project{{"GCP project<br/>telecom-demo-&lt;random hex&gt;<br/>billing linked"}}
     apis{{"Enabled APIs<br/>BigQuery, Cloud Run,<br/>Artifact Registry, Cloud Build"}}
-    ds{{"Dataset<br/>telecom_analytics (US)"}}
-    bucket[("GCS bucket<br/>&lt;project_id&gt;-loads")]
-    sa_api{{"calls-api<br/>service account"}}
-    sa_fly{{"flyway<br/>service account"}}
-    repo{{"Artifact Registry repo<br/>flyway"}}
-    repo_api{{"Artifact Registry repo<br/>calls-api"}}
-    job("Flyway Cloud Run job<br/>image pinned by digest")
-    api("Calls API Cloud Run service<br/>private, image pinned by digest")
-  end
 
-  subgraph other["Created by Flyway, not in Terraform state"]
-    table[("calls table<br/>owned by Flyway")]
+    subgraph bqBox["bigquery"]
+      ds{{"Dataset<br/>telecom_analytics (US)"}}
+      bucket[("GCS bucket<br/>&lt;project_id&gt;-loads")]
+      table[("calls table<br/>created by Flyway,<br/>not in Terraform state")]
+
+      subgraph flywayBox["flyway"]
+        sa_fly{{"flyway<br/>service account"}}
+        repo{{"Artifact Registry repo<br/>flyway"}}
+        job("Flyway Cloud Run job<br/>image pinned by digest")
+      end
+    end
+
+    subgraph apiBox["api"]
+      sa_api{{"calls-api<br/>service account"}}
+      repo_api{{"Artifact Registry repo<br/>calls-api"}}
+      api("Calls API Cloud Run service<br/>private, image pinned by digest")
+    end
   end
 
   tf -.->|creates| project
