@@ -1,5 +1,7 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.dto;
 
+import com.example.calls.api.query.enums.QueryStatus;
+import com.example.calls.api.query.model.Call;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
@@ -19,7 +21,7 @@ import java.util.List;
  * @param calls the matching Calls, sorted by {@code offhookDatetime} then {@code callId} (DONE
  *     only)
  * @param error why the job failed (FAILED only)
- * @see CallsController#result(String)
+ * @see com.example.calls.api.query.CallsController#result(String)
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record JobResponse(
@@ -40,7 +42,7 @@ public record JobResponse(
    * @param status {@link QueryStatus#PENDING} or {@link QueryStatus#RUNNING}
    * @return a response with no result and no error
    */
-  static JobResponse inProgress(String jobId, QueryStatus status) {
+  public static JobResponse inProgress(String jobId, QueryStatus status) {
     return new JobResponse(jobId, status, null, null, null, null, null, null, null);
   }
 
@@ -51,7 +53,7 @@ public record JobResponse(
    * @param result the Calls and the range that was looked up
    * @return a {@link QueryStatus#DONE} response carrying {@code result}
    */
-  static JobResponse done(String jobId, QueryResponse result) {
+  public static JobResponse done(String jobId, QueryResponse result) {
     return new JobResponse(
         jobId,
         QueryStatus.DONE,
@@ -71,7 +73,7 @@ public record JobResponse(
    * @param error why it failed
    * @return a {@link QueryStatus#FAILED} response carrying {@code error}
    */
-  static JobResponse failed(String jobId, JobError error) {
+  public static JobResponse failed(String jobId, JobError error) {
     return new JobResponse(jobId, QueryStatus.FAILED, null, null, null, null, null, null, error);
   }
 }

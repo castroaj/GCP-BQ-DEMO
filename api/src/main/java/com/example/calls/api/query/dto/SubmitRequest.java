@@ -1,4 +1,6 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.dto;
+
+import com.example.calls.api.query.model.CallQuery;
 
 /**
  * The JSON body of {@code POST /api/v1/query}. The values are raw strings so that {@link

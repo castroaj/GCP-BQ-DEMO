@@ -1,5 +1,6 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.dto;
 
+import com.example.calls.api.query.model.Call;
 import java.util.List;
 
 /**
@@ -11,7 +12,7 @@ import java.util.List;
  * @param count number of Calls in {@code calls}
  * @param truncated {@code true} when more Calls matched than the 1,000-row cap returned
  * @param calls the matching Calls, sorted by {@code offhookDatetime} then {@code callId}
- * @see CallsQueryService#find(String)
+ * @see com.example.calls.api.query.CallsQueryService#find(String)
  */
 public record QueryResponse(
     String telephoneNumber,

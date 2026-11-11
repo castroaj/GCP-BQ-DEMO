@@ -1,6 +1,10 @@
 package com.example.calls.api.query;
 
 import com.example.calls.api.ApiException;
+import com.example.calls.api.query.dto.JobResponse;
+import com.example.calls.api.query.dto.SubmitRequest;
+import com.example.calls.api.query.dto.SubmitResponse;
+import com.example.calls.api.query.model.CallQuery;
 import java.net.URI;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,5 +1,6 @@
 package com.example.calls.api.query;
 
+import com.example.calls.api.query.model.Call;
 import com.google.cloud.bigquery.FieldValue;
 import com.google.cloud.bigquery.FieldValueList;
 import java.time.Instant;

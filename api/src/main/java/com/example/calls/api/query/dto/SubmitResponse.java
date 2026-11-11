@@ -1,4 +1,4 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.dto;
 
 /**
  * The {@code 202} body of {@code POST /api/v1/query}.

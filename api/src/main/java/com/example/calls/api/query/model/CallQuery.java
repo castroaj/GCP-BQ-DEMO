@@ -1,4 +1,4 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.model;
 
 import com.example.calls.api.ApiException;
 import com.example.calls.api.ApiException.Code;
@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
  *     calling} and {@code called}
  * @param start start of the range, inclusive
  * @param end end of the range, exclusive and after {@code start}
- * @see CallsQueryService#submit(CallQuery)
+ * @see com.example.calls.api.query.CallsQueryService#submit(CallQuery)
  */
 public record CallQuery(String telephoneNumber, Instant start, Instant end) {
   /** E.164 digits without the leading {@code +}, at most 15 digits. */

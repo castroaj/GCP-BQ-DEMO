@@ -1,4 +1,4 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.enums;
 
 /** Where a query job is in its life, as reported by {@code GET /api/v1/query/{jobId}}. */
 public enum QueryStatus {

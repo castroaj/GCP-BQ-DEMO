@@ -1,4 +1,4 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

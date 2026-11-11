@@ -1,7 +1,13 @@
 package com.example.calls.api.query;
 
-import com.example.calls.api.ApiException;
 import com.example.calls.api.ApiException.Code;
+import com.example.calls.api.ApiException;
+import com.example.calls.api.query.dto.JobError;
+import com.example.calls.api.query.dto.JobResponse;
+import com.example.calls.api.query.dto.QueryResponse;
+import com.example.calls.api.query.enums.QueryStatus;
+import com.example.calls.api.query.model.Call;
+import com.example.calls.api.query.model.CallQuery;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryError;
 import com.google.cloud.bigquery.BigQueryException;
@@ -14,8 +20,8 @@ import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.QueryParameterValue;
 import com.google.cloud.bigquery.TableResult;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;

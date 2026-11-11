@@ -1,4 +1,6 @@
-package com.example.calls.api.query;
+package com.example.calls.api.query.dto;
+
+import com.example.calls.api.query.enums.QueryStatus;
 
 /**
  * Why a job {@link QueryStatus#FAILED}, shaped like the API's problem details. BigQuery's own
