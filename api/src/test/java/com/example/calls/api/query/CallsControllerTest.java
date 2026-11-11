@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -61,11 +62,11 @@ class CallsControllerTest {
   @Test
   void missingParametersAre400() throws Exception {
     query(null, START, END).andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error").value("MISSING_PARAMETER"));
+        .andExpect(jsonPath("$.code").value("MISSING_PARAMETER"));
     query("15550100001", null, END).andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error").value("MISSING_PARAMETER"));
+        .andExpect(jsonPath("$.code").value("MISSING_PARAMETER"));
     query("15550100001", START, null).andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error").value("MISSING_PARAMETER"));
+        .andExpect(jsonPath("$.code").value("MISSING_PARAMETER"));
     verifyNoInteractions(service);
   }
 
@@ -73,12 +74,12 @@ class CallsControllerTest {
   void malformedParametersAre400() throws Exception {
     for (var number : List.of("+15550100001", "abc", "1", "1555010000112345678", "")) {
       query(number, START, END).andExpect(status().isBadRequest())
-          .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+          .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
     }
     // No offset, date only, and garbage are all rejected.
     for (var bad : List.of("2026-01-15T00:00:00", "2026-01-15", "yesterday")) {
       query("15550100001", bad, END).andExpect(status().isBadRequest())
-          .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+          .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
     }
     verifyNoInteractions(service);
   }
@@ -86,9 +87,9 @@ class CallsControllerTest {
   @Test
   void endNotAfterStartIsInvalidRange() throws Exception {
     query("15550100001", END, START).andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error").value("INVALID_RANGE"));
+        .andExpect(jsonPath("$.code").value("INVALID_RANGE"));
     query("15550100001", START, START).andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error").value("INVALID_RANGE"));
+        .andExpect(jsonPath("$.code").value("INVALID_RANGE"));
   }
 
   @Test
@@ -96,15 +97,36 @@ class CallsControllerTest {
     when(service.query(any()))
         .thenThrow(new ApiException(ApiException.Code.UPSTREAM_ERROR, "Query failed", new RuntimeException("secret detail")));
     query("15550100001", START, END).andExpect(status().isBadGateway())
-        .andExpect(jsonPath("$.error").value("UPSTREAM_ERROR"))
-        .andExpect(jsonPath("$.message").value("Query failed"));
+        .andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"))
+        .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+        .andExpect(jsonPath("$.status").value(502))
+        .andExpect(jsonPath("$.title").value("Upstream error"))
+        .andExpect(jsonPath("$.detail").value("Query failed"));
   }
 
   @Test
   void unexpectedFailureIs500WithoutDetails() throws Exception {
     when(service.query(any())).thenThrow(new IllegalStateException("boom"));
     query("15550100001", START, END).andExpect(status().isInternalServerError())
-        .andExpect(jsonPath("$.error").value("INTERNAL_ERROR"))
-        .andExpect(jsonPath("$.message").value("Internal error"));
+        .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+        .andExpect(jsonPath("$.title").value("Internal error"))
+        .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
+  }
+
+  @Test
+  void validationErrorIsAProblemDetailsBody() throws Exception {
+    query(null, START, END).andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.title").value("Missing parameter"))
+        .andExpect(jsonPath("$.detail").value("Missing required parameter: telephoneNumber"))
+        .andExpect(jsonPath("$.code").value("MISSING_PARAMETER"));
+  }
+
+  @Test
+  void unknownPathIsAlsoAProblemDetailsBody() throws Exception {
+    mvc.perform(get("/api/v1/nope")).andExpect(status().isNotFound())
+        .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+        .andExpect(jsonPath("$.status").value(404));
   }
 }

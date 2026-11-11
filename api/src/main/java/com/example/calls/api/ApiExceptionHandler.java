@@ -1,37 +1,39 @@
 package com.example.calls.api;
 
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.ErrorResponse;
+import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-/** Every error body is {"error": CODE, "message": "..."}; details go to the log only. */
+/**
+ * Every error is an RFC 9457 problem (application/problem+json) with a {@code code} property.
+ * Spring's own errors (unknown path, wrong method) come from the base class in the same shape;
+ * BigQuery details and stack traces go to the log only.
+ */
 @RestControllerAdvice
-class ApiExceptionHandler {
+class ApiExceptionHandler extends ResponseEntityExceptionHandler {
   private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
   @ExceptionHandler(ApiException.class)
-  ResponseEntity<Map<String, String>> handleApi(ApiException e) {
+  ProblemDetail handleApi(ApiException e) {
     if (e.getCause() != null) {
       log.error("{}: {}", e.code(), e.getMessage(), e.getCause());
     }
-    return body(e.code(), e.getMessage());
+    return problem(e.code(), e.getMessage());
   }
 
   @ExceptionHandler(Exception.class)
-  ResponseEntity<Map<String, String>> handleOther(Exception e) throws Exception {
-    // Spring's own 404/405 and similar keep their default handling.
-    if (e instanceof ErrorResponse) {
-      throw e;
-    }
+  ProblemDetail handleOther(Exception e) {
     log.error("Unhandled error", e);
-    return body(ApiException.Code.INTERNAL_ERROR, "Internal error");
+    return problem(ApiException.Code.INTERNAL_ERROR, "An unexpected error occurred");
   }
 
-  private static ResponseEntity<Map<String, String>> body(ApiException.Code code, String message) {
-    return ResponseEntity.status(code.status()).body(Map.of("error", code.name(), "message", message));
+  private static ProblemDetail problem(ApiException.Code code, String detail) {
+    ProblemDetail problem = ProblemDetail.forStatusAndDetail(code.status(), detail);
+    problem.setTitle(code.title());
+    problem.setProperty("code", code.name());
+    return problem;
   }
 }

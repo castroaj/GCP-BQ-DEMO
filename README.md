@@ -37,7 +37,7 @@ curl -s -G -H "Authorization: Bearer $(gcloud auth print-identity-token)" "$URL/
   --data-urlencode endDatetime=2026-01-16T00:00:00Z
 ```
 
-Returns `{ telephoneNumber, startDatetime, endDatetime, count, truncated, calls[] }` (at most 1,000 calls, sorted by `offhookDatetime` then `callId`). Errors are `{ "error": CODE, "message": ... }` with `400` for bad parameters and `502` for BigQuery failures. Deploy and teardown: [docs/gcp/api-deployment.md](docs/gcp/api-deployment.md).
+Returns `{ telephoneNumber, startDatetime, endDatetime, count, truncated, calls[] }` (at most 1,000 calls, sorted by `offhookDatetime` then `callId`). Errors are RFC 9457 Problem Details (`application/problem+json`, with a `code` property such as `INVALID_RANGE`): `400` for bad parameters and `502` for BigQuery failures. Deploy and teardown: [docs/gcp/api-deployment.md](docs/gcp/api-deployment.md).
 
 ## Setup
 
