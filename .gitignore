@@ -9,3 +9,4 @@ data-generator/out/
 __pycache__/
 api/.gradle/
 api/build/
+api/bin/
