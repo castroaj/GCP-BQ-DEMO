@@ -120,7 +120,7 @@ sequenceDiagram
 
   Client->>API: POST /api/v1/query<br/>{ telephoneNumber, startDatetime, endDatetime }<br/>(Bearer identity token)
   alt fields valid
-    API->>BQ: create query job calls-query-&lt;uuid&gt;<br/>(as calls-api service account)
+    API->>BQ: create query job calls-query-UUID<br/>(as calls-api service account)
     API-->>Client: 202 { jobId } and Location header
   else missing or malformed field, or invalid range
     API-->>Client: 400 application/problem+json<br/>{ code: MISSING_PARAMETER | INVALID_PARAMETER | INVALID_RANGE }
