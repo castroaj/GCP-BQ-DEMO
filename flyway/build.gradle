@@ -1,0 +1,31 @@
+// Flyway migrations for the telecom_analytics dataset. Run with ADC:
+//   gcloud auth application-default login
+//   gcloud auth application-default set-quota-project $PROJECT
+//   ./gradlew --stop && ./gradlew flywayMigrate
+// Needs PROJECT and DATASET (default telecom_analytics) in the environment.
+
+// The Flyway plugin loads the BigQuery database support and the JDBC driver
+// from the buildscript classpath, not from project dependencies.
+buildscript {
+  repositories { mavenCentral() }
+  dependencies {
+    classpath "org.flywaydb:flyway-gcp-bigquery:13.12.1"
+    // Google's Maven-published driver; the :all classifier bundles its deps.
+    classpath "com.google.cloud:google-cloud-bigquery-jdbc:1.9.0:all"
+  }
+}
+
+plugins { id "org.flywaydb.flyway" version "13.12.1" }
+
+def project_id = System.getenv("PROJECT")
+def dataset = System.getenv("DATASET") ?: "telecom_analytics"
+
+flyway {
+  // OAuthType=3 is Application Default Credentials (see #12); EnableSession=1
+  // is required or Flyway fails in setAutoCommit.
+  url = project_id ? "jdbc:bigquery://https://www.googleapis.com/bigquery/v2:443;ProjectId=${project_id};OAuthType=3;DefaultDataset=${dataset};EnableSession=1;" : null
+  // flyway-gcp-bigquery hard-codes the Simba class, so the driver must be named.
+  driver = "com.google.cloud.bigquery.jdbc.BigQueryDriver"
+  schemas = [dataset]
+  locations = ["filesystem:sql"]
+}
