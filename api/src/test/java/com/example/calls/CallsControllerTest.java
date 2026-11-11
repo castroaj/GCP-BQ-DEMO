@@ -1,7 +1,6 @@
 package com.example.calls;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -45,7 +44,7 @@ class CallsControllerTest {
     var e = Instant.parse("2026-01-16T00:00:00Z");
     var call = new Call("id-1", "15550100001", "15551234567", "2026-01-15T10:00:00Z", 0,
         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
-    when(service.query("15550100001", s, e))
+    when(service.query(new CallQuery("15550100001", s, e)))
         .thenReturn(new QueryResponse("15550100001", "2026-01-15T00:00:00Z", "2026-01-16T00:00:00Z", 1, false, List.of(call)));
 
     // +05:00 offsets are accepted and normalized.
@@ -55,7 +54,7 @@ class CallsControllerTest {
         .andExpect(jsonPath("$.truncated").value(false))
         .andExpect(jsonPath("$.calls[0].callId").value("id-1"))
         .andExpect(jsonPath("$.calls[0].callType").value((Object) null));
-    verify(service).query(eq("15550100001"), eq(s), eq(e));
+    verify(service).query(new CallQuery("15550100001", s, e));
   }
 
   @Test
@@ -93,7 +92,7 @@ class CallsControllerTest {
 
   @Test
   void upstreamFailureIs502WithoutDetails() throws Exception {
-    when(service.query(any(), any(), any()))
+    when(service.query(any()))
         .thenThrow(new ApiException(ApiException.Code.UPSTREAM_ERROR, "Query failed", new RuntimeException("secret detail")));
     query("15550100001", START, END).andExpect(status().isBadGateway())
         .andExpect(jsonPath("$.error").value("UPSTREAM_ERROR"))
@@ -102,7 +101,7 @@ class CallsControllerTest {
 
   @Test
   void unexpectedFailureIs500WithoutDetails() throws Exception {
-    when(service.query(any(), any(), any())).thenThrow(new IllegalStateException("boom"));
+    when(service.query(any())).thenThrow(new IllegalStateException("boom"));
     query("15550100001", START, END).andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.error").value("INTERNAL_ERROR"))
         .andExpect(jsonPath("$.message").value("Internal error"));

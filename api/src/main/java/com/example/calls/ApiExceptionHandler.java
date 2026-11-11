@@ -32,6 +32,6 @@ class ApiExceptionHandler {
   }
 
   private static ResponseEntity<Map<String, String>> body(ApiException.Code code, String message) {
-    return ResponseEntity.status(code.status).body(Map.of("error", code.name(), "message", message));
+    return ResponseEntity.status(code.status()).body(Map.of("error", code.name(), "message", message));
   }
 }

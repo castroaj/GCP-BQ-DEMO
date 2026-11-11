@@ -3,14 +3,12 @@ package com.example.calls;
 import com.example.calls.ApiException.Code;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
-import com.google.cloud.bigquery.FieldValue;
 import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.QueryParameterValue;
 import com.google.cloud.bigquery.TableResult;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +17,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class CallsQueryService {
   static final int MAX_ROWS = 1000;
+  private static final long MICROS_PER_SECOND = 1_000_000;
 
   private final BigQuery bigQuery;
   private final String dataset;
@@ -28,30 +27,8 @@ public class CallsQueryService {
     this.dataset = dataset;
   }
 
-  public QueryResponse query(String telephoneNumber, Instant start, Instant end) {
-    var table = "`" + bigQuery.getOptions().getProjectId() + "." + dataset + ".calls`";
-    var config =
-        QueryJobConfiguration.newBuilder(sql(table))
-            .addNamedParameter("telephoneNumber", QueryParameterValue.string(telephoneNumber))
-            .addNamedParameter("start", QueryParameterValue.timestamp(micros(start)))
-            .addNamedParameter("end", QueryParameterValue.timestamp(micros(end)))
-            .addNamedParameter(
-                "startDate", QueryParameterValue.date(start.atZone(ZoneOffset.UTC).toLocalDate().toString()))
-            .addNamedParameter(
-                "endDate", QueryParameterValue.date(end.atZone(ZoneOffset.UTC).toLocalDate().toString()))
-            // One extra row tells us whether the result was truncated.
-            .addNamedParameter("limit", QueryParameterValue.int64(MAX_ROWS + 1))
-            .build();
-
-    TableResult result;
-    try {
-      result = bigQuery.query(config);
-    } catch (BigQueryException e) {
-      throw new ApiException(Code.UPSTREAM_ERROR, "Query failed", e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new ApiException(Code.UPSTREAM_ERROR, "Query interrupted", e);
-    }
+  public QueryResponse query(CallQuery query) {
+    TableResult result = run(queryConfig(query));
 
     List<Call> calls = new ArrayList<>();
     boolean truncated = false;
@@ -60,12 +37,31 @@ public class CallsQueryService {
         truncated = true;
         break;
       }
-      calls.add(toCall(row));
+      calls.add(CallRowMapper.toCall(row));
     }
-    return new QueryResponse(telephoneNumber, iso(start), iso(end), calls.size(), truncated, calls);
+    return new QueryResponse(
+        query.telephoneNumber(),
+        CallRowMapper.iso(query.start()),
+        CallRowMapper.iso(query.end()),
+        calls.size(),
+        truncated,
+        calls);
   }
 
-  /** Values only are parameters; the table name is fixed server-side config. */
+  /** Every request value is a named parameter; only the server-side table name is formatted in. */
+  QueryJobConfiguration queryConfig(CallQuery query) {
+    String table = "`" + bigQuery.getOptions().getProjectId() + "." + dataset + ".calls`";
+    return QueryJobConfiguration.newBuilder(sql(table))
+        .addNamedParameter("telephoneNumber", QueryParameterValue.string(query.telephoneNumber()))
+        .addNamedParameter("start", timestamp(query.start()))
+        .addNamedParameter("end", timestamp(query.end()))
+        .addNamedParameter("startDate", utcDate(query.start()))
+        .addNamedParameter("endDate", utcDate(query.end()))
+        // One extra row tells us whether the result was truncated.
+        .addNamedParameter("limit", QueryParameterValue.int64(MAX_ROWS + 1))
+        .build();
+  }
+
   static String sql(String table) {
     return """
         SELECT callId, calling, called, offhookDatetime, durationSeconds, callType, direction,
@@ -82,45 +78,24 @@ public class CallsQueryService {
         .formatted(table);
   }
 
-  private static Call toCall(FieldValueList r) {
-    return new Call(
-        r.get("callId").getStringValue(),
-        r.get("calling").getStringValue(),
-        r.get("called").getStringValue(),
-        iso(Instant.ofEpochSecond(0, r.get("offhookDatetime").getTimestampValue() * 1000)),
-        r.get("durationSeconds").getLongValue(),
-        str(r, "callType"),
-        str(r, "direction"),
-        str(r, "callStatus"),
-        str(r, "callingCarrier"),
-        str(r, "calledCarrier"),
-        str(r, "callingCountryCode"),
-        str(r, "calledCountryCode"),
-        str(r, "callingCity"),
-        str(r, "calledCity"),
-        str(r, "cellTowerId"),
-        str(r, "networkType"),
-        str(r, "codec"),
-        bool(r, "isRoaming"),
-        bool(r, "isInternational"),
-        r.get("costUsd").isNull() ? null : r.get("costUsd").getNumericValue());
+  private TableResult run(QueryJobConfiguration config) {
+    try {
+      return bigQuery.query(config);
+    } catch (BigQueryException e) {
+      throw new ApiException(Code.UPSTREAM_ERROR, "Query failed", e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(Code.UPSTREAM_ERROR, "Query interrupted", e);
+    }
   }
 
-  private static String str(FieldValueList r, String name) {
-    FieldValue v = r.get(name);
-    return v.isNull() ? null : v.getStringValue();
+  private static QueryParameterValue timestamp(Instant instant) {
+    long micros = instant.getEpochSecond() * MICROS_PER_SECOND + instant.getNano() / 1000;
+    return QueryParameterValue.timestamp(micros);
   }
 
-  private static Boolean bool(FieldValueList r, String name) {
-    FieldValue v = r.get(name);
-    return v.isNull() ? null : v.getBooleanValue();
-  }
-
-  private static long micros(Instant i) {
-    return i.getEpochSecond() * 1_000_000 + i.getNano() / 1000;
-  }
-
-  private static String iso(Instant i) {
-    return DateTimeFormatter.ISO_INSTANT.format(i);
+  /** The UTC calendar day, used to prune the table's daily partitions. */
+  private static QueryParameterValue utcDate(Instant instant) {
+    return QueryParameterValue.date(instant.atZone(ZoneOffset.UTC).toLocalDate().toString());
   }
 }

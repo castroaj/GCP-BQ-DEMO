@@ -11,10 +11,14 @@ public class ApiException extends RuntimeException {
     UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
-    final HttpStatus status;
+    private final HttpStatus status;
 
     Code(HttpStatus status) {
       this.status = status;
+    }
+
+    HttpStatus status() {
+      return status;
     }
   }
 
