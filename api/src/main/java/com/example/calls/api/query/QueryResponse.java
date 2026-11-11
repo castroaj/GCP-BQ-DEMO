@@ -1,4 +1,4 @@
-package com.example.calls;
+package com.example.calls.api.query;
 
 import java.util.List;
 

@@ -1,4 +1,4 @@
-package com.example.calls;
+package com.example.calls.api;
 
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;

@@ -1,4 +1,4 @@
-package com.example.calls;
+package com.example.calls.api.query;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.calls.api.ApiException;
 import com.google.cloud.bigquery.BigQuery;
 import java.time.Instant;
 import java.util.List;

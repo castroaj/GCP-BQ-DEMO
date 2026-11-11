@@ -1,6 +1,7 @@
-package com.example.calls;
+package com.example.calls.api.query;
 
-import com.example.calls.ApiException.Code;
+import com.example.calls.api.ApiException;
+import com.example.calls.api.ApiException.Code;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;

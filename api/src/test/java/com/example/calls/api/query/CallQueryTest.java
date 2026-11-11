@@ -1,9 +1,10 @@
-package com.example.calls;
+package com.example.calls.api.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.example.calls.ApiException.Code;
+import com.example.calls.api.ApiException;
+import com.example.calls.api.ApiException.Code;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;

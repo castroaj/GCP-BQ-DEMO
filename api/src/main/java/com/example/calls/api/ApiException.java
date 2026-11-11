@@ -1,4 +1,4 @@
-package com.example.calls;
+package com.example.calls.api;
 
 import org.springframework.http.HttpStatus;
 

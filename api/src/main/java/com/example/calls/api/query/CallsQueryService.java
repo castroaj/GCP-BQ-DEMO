@@ -1,6 +1,7 @@
-package com.example.calls;
+package com.example.calls.api.query;
 
-import com.example.calls.ApiException.Code;
+import com.example.calls.api.ApiException;
+import com.example.calls.api.ApiException.Code;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryException;
 import com.google.cloud.bigquery.FieldValueList;
