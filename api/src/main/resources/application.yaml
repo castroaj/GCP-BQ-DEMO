@@ -1,5 +1,4 @@
 # Actuator serves the spec's GET /health: root base path, health only.
-# No server.port/address: Spring defaults (8080, all interfaces) match Cloud Run.
 management:
   endpoints:
     web:
