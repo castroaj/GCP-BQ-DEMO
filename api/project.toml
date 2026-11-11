@@ -1,5 +1,0 @@
-# Read by `gcloud run deploy --source .`. Without it the Java buildpack picks
-# the latest JDK (25), and Gradle can't find the Java 21 toolchain.
-[[build.env]]
-name = "GOOGLE_RUNTIME_VERSION"
-value = "21"

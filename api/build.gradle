@@ -1,5 +1,5 @@
 // Calls API: Spring Boot on Java 21, single module. `bootJar` output is what
-// `gcloud run deploy --source .` builds with the Java buildpack.
+// api/Dockerfile packages into the Cloud Run image.
 plugins {
   id "java"
   id "org.springframework.boot" version "3.5.8"

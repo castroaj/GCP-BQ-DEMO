@@ -16,13 +16,13 @@ export BUCKET=$(terraform -chdir=terraform output -raw bucket_name)
 export TABLE=calls   # recommended; this is also the default
 
 # load one day, or a range (dates are UTC, both ends inclusive)
-./data-generator/load_range.sh 2026-01-15 2026-01-15
+./data-generator/load_range.sh 2026-01-01 2026-01-01
 ./data-generator/load_range.sh 2026-01-01 2026-01-31
 ```
 
 - `TABLE` is the table loaded into; set it to `calls` (the recommended value, and the default). `DATASET` defaults to `telecom_analytics`; `PYTHON` defaults to `python3`.
-- Loads are append only. To redo a date, delete it first: `DELETE FROM telecom_analytics.calls WHERE DATE(offhookDatetime) = '2026-01-15'`.
+- Loads are append only. To redo a date, delete it first: `DELETE FROM telecom_analytics.calls WHERE DATE(offhookDatetime) = '2026-01-01'`.
 - Phone numbers are digits only, with no leading `+` (for example `15551234567`).
 - Test-needle numbers appear a fixed number of times on every day: `15550100000` (0), `15550100001` (1), `15550100025` (25), `15550101500` (1,500).
-- Generate files without loading: `python data-generator/generate.py --date 2026-01-15 --out ./out`. The same date and `--seed` give byte-identical files.
+- Generate files without loading: `python data-generator/generate.py --date 2026-01-01 --out ./out`. The same date and `--seed` give byte-identical files.
 - Details: [docs/spec.md](spec.md#seed-data-7).

@@ -48,3 +48,9 @@ variable "flyway_repository_id" {
   type        = string
   default     = "flyway"
 }
+
+variable "api_repository_id" {
+  description = "Artifact Registry Docker repository for the Calls API image."
+  type        = string
+  default     = "calls-api"
+}

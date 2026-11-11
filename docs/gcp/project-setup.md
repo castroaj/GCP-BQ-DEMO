@@ -89,7 +89,7 @@ Turns on the services the prototype needs:
 
 - `bigquery.googleapis.com`: BigQuery, for the Call table.
 - `run.googleapis.com`: Cloud Run, for the API.
-- `artifactregistry.googleapis.com` and `cloudbuild.googleapis.com`: used when deploying from source (`gcloud run deploy --source .`), which builds the container and stores the image.
+- `artifactregistry.googleapis.com` and `cloudbuild.googleapis.com`: used to build and store the container image (`gcloud run deploy --source .` on the manual path, `gcloud builds submit` from Terraform).
 
 ### 8. Set up Application Default Credentials (ADC)
 
