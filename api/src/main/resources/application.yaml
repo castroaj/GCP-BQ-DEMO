@@ -8,5 +8,4 @@ management:
 
 calls:
   dataset: ${DATASET:telecom_analytics}
-  # BigQuery job ids are scoped to a location; it must match the dataset's (Terraform default US).
   location: ${DATASET_LOCATION:US}
