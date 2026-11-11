@@ -1,9 +1,5 @@
-# Cloud Run supplies $PORT; bind all interfaces.
-server:
-  port: ${PORT:8080}
-  address: 0.0.0.0
-
 # Actuator serves the spec's GET /health: root base path, health only.
+# No server.port/address: Spring defaults (8080, all interfaces) match Cloud Run.
 management:
   endpoints:
     web:
