@@ -148,5 +148,5 @@ After scope B the project itself is gone and these commands fail with a not-foun
 
 ## Related follow-ups
 
-- [#10](https://github.com/castroaj/GCP-BQ-DEMO/issues/10): replace the buildpack with a maintained Dockerfile (one `FROM eclipse-temurin:21-jre` line pins the runtime and `project.toml` goes away).
-- [#9](https://github.com/castroaj/GCP-BQ-DEMO/issues/9): alternative Java frameworks.
+- [#10](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/10): replace the buildpack with a maintained Dockerfile (one `FROM eclipse-temurin:21-jre` line pins the runtime and `project.toml` goes away).
+- [#9](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/9): alternative Java frameworks.

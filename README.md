@@ -1,4 +1,4 @@
-# GCP-BQ-DEMO
+# gcp-cloud-run-big-query-template
 
 A **strictly non-production prototype** that explores BigQuery and Cloud Run for telecom analytics. See `GLOSSARY.md` for domain terms.
 
