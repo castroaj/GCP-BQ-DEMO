@@ -19,6 +19,7 @@ Planning. Decisions are tracked in the GitHub issue map (label `wayfinder:map`);
 |---|---|
 | `api/` | Spring Boot API (Gradle, single module) |
 | `data-generator/` | Python generator for synthetic Calls (Parquet) |
+| `terraform/` | Terraform for the throwaway GCP project |
 | `docs/gcp/` | GCP project and service account setup |
 | `docs/adr/` | Architecture decision records |
 
@@ -30,9 +31,10 @@ _Usage examples to be added once the API exists._
 
 ## Setup
 
-- [GCP project setup](docs/gcp/project-setup.md)
-- [API service account](docs/gcp/api-service-account.md)
+- Terraform (recommended): [docs/gcp/terraform.md](docs/gcp/terraform.md)
+- Manual alternative: [GCP project setup](docs/gcp/project-setup.md), [API service account](docs/gcp/api-service-account.md)
 
 ## Teardown
 
-_To be documented._
+- Terraform: `terraform -chdir=terraform destroy`, then the local cleanup in [docs/gcp/terraform.md](docs/gcp/terraform.md#teardown)
+- Manual: see the Teardown section of [project-setup.md](docs/gcp/project-setup.md#teardown)

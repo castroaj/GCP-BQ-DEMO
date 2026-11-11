@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+# Find an OPEN billing account with: gcloud billing accounts list
+billing_account_id = "XXXXXX-XXXXXX-XXXXXX"
+
+# Optional overrides (defaults shown):
+# project_id_prefix = "telecom-demo"
+# region            = "us-east4"
+# dataset_location  = "US"
