@@ -1,0 +1,12 @@
+# Cloud Run supplies $PORT; bind all interfaces.
+server:
+  port: ${PORT:8080}
+  address: 0.0.0.0
+
+# Actuator serves the spec's GET /health: root base path, health only.
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health
