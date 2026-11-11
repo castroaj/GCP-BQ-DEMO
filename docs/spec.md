@@ -26,7 +26,8 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 - Cloud Run region `us-east4`.
 - State is local and gitignored; secrets come from an untracked `terraform.tfvars`. `terraform destroy` removes everything in one pass.
 - The Flyway Cloud Run job and its image (Artifact Registry repo, Cloud Build) are managed by Terraform, which executes the job so a fresh apply creates the `calls` table.
-- Not managed by Terraform: the `calls` table itself (Flyway) and the Cloud Run service (`gcloud run deploy --source`).
+- The API is managed by Terraform too ([#46](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/46)): an Artifact Registry repo `calls-api`, the image built from `api/Dockerfile` in Cloud Build (tagged with a hash of the inputs, resolved to a digest) and a private `google_cloud_run_v2_service` that depends on the Flyway migration. Every code change ships with `terraform apply`.
+- Not managed by Terraform: the `calls` table itself (Flyway).
 - Scripts take `PROJECT`, `BUCKET` and `DATASET` environment variables, set from `terraform -chdir=terraform output -raw project_id | bucket_name | dataset_id`. No wrapper script.
 - Details: [docs/gcp/terraform.md](gcp/terraform.md).
 
@@ -73,7 +74,7 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 - Cancelling a job is out of scope ([#38](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/38)). No Cloud Run changes are needed: the query runs inside BigQuery, so nothing runs after a response.
 - Queries are parameterized with `QueryJobConfiguration.addNamedParameter` (values only); one reused BigQuery client; bind `0.0.0.0` on `$PORT`.
 - Stack: Spring Boot, Java 21, `google-cloud-bigquery`, single-module Gradle in `api/` (`bootJar`, wrapper committed). Alternatives were left to [#9](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/9).
-- Deploy: buildpack `gcloud run deploy --source .` first, confirmed by a hello-world `/health` deploy as the first API task. A maintained Dockerfile is a follow-up ([#10](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/10)).
+- Deploy: `terraform apply` builds `api/Dockerfile` (multi-stage, Java 21, [#10](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/10)) and creates the service. `gcloud run deploy --source .` stays as a manual quick path; the next apply reverts it.
 - Identity: dedicated `calls-api` service account with `roles/bigquery.jobUser` (project) and `roles/bigquery.dataViewer` (`telecom_analytics` dataset only). Details: [docs/gcp/api-service-account.md](gcp/api-service-account.md).
 
 ## Build order
@@ -81,7 +82,7 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 1. `terraform apply`.
 2. Flyway: `terraform apply` already ran the job; check `flyway_schema_history` and that the table matches the schema (manual path: ADC quota project, `./gradlew --stop`, `flywayMigrate`).
 3. Generator and `load_range.sh` for one day; check 1M rows and the needle counts.
-4. API: hello-world `GET /health` buildpack deploy.
+4. API: `GET /health` answers with an identity token (`terraform apply` already deployed it).
 5. API: `POST /api/v1/query` and `GET /api/v1/query/{jobId}`, tested on the seeded day with the needle numbers.
 6. Load the full month, then run the end-to-end check.
 7. `terraform destroy`.

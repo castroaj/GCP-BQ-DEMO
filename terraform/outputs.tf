@@ -24,7 +24,7 @@ output "bucket_name" {
   value       = google_storage_bucket.loads.name
 }
 
-# Passed to `gcloud run deploy --service-account`.
+# For the manual `gcloud run deploy --service-account` path.
 output "calls_api_service_account_email" {
   value = google_service_account.calls_api.email
 }
@@ -37,4 +37,9 @@ output "flyway_service_account_email" {
 # For `gcloud run jobs execute` after adding a migration by hand.
 output "flyway_job_name" {
   value = google_cloud_run_v2_job.flyway.name
+}
+
+# Private service: call it with an identity token (see docs/gcp/api-deployment.md).
+output "calls_api_url" {
+  value = google_cloud_run_v2_service.calls_api.uri
 }

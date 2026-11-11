@@ -12,7 +12,9 @@ Creates and destroys the whole throwaway GCP project with Terraform (`terraform/
 
 - Artifact Registry repo `flyway`, the Flyway image (built with `gcloud builds submit`, pinned by digest) and the Cloud Run job `flyway`, which runs as the `flyway` account. Terraform executes the job after the dataset and IAM exist, so a fresh apply ends with the `calls` table (see [flyway-service-account.md](flyway-service-account.md#flyway-as-a-cloud-run-job)).
 
-Not managed: the `calls` table contents (Flyway owns them), the Cloud Run service (`gcloud run deploy --source`), and the Flyway key file.
+- Artifact Registry repo `calls-api`, the API image (built from `api/Dockerfile` with `gcloud builds submit`, tagged with a hash of the inputs, pinned by digest) and the private Cloud Run service `calls-api`, which runs as the `calls-api` account and is created after the migration (see [api-deployment.md](api-deployment.md)).
+
+Not managed: the `calls` table contents (Flyway owns them) and the Flyway key file.
 
 ## Prerequisites
 
@@ -29,7 +31,7 @@ terraform init
 terraform apply
 ```
 
-The apply also builds the Flyway image in Cloud Build and runs the migration job, so it takes a few minutes longer. It needs `gcloud` logged in (`gcloud auth login`) because those two steps shell out to it.
+The apply also builds the Flyway and API images in Cloud Build and runs the migration job, so it takes a few minutes longer. It needs `gcloud` logged in (`gcloud auth login`) because those steps shell out to it. A later apply rebuilds an image only when its inputs change, so every API code change ships with `terraform apply`.
 
 State is local and gitignored (`*.tfstate*`). If you lose it, fall back to `gcloud projects delete <project_id>`.
 
@@ -39,9 +41,10 @@ State is local and gitignored (`*.tfstate*`). If you lose it, fall back to `gclo
 terraform -chdir=terraform output -raw project_id
 terraform -chdir=terraform output -raw calls_api_service_account_email
 terraform -chdir=terraform output -raw bucket_name
+terraform -chdir=terraform output -raw calls_api_url
 ```
 
-Use these in `gcloud run deploy --project ... --service-account ...`; there is no wrapper script.
+The service is already deployed, so `calls_api_url` is all the API needs. The other outputs feed the optional manual `gcloud run deploy` in [api-deployment.md](api-deployment.md#manual-deploy-quick-path); there is no wrapper script.
 
 ## Flyway key (optional)
 

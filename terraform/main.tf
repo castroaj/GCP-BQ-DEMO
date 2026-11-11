@@ -14,7 +14,7 @@ locals {
   project_id = "${var.project_id_prefix}-${random_id.project_suffix.hex}"
 
   # BigQuery for the data, Cloud Run for the API; Artifact Registry and Cloud
-  # Build are needed by `gcloud run deploy --source`.
+  # Build hold and build the Flyway and API images.
   apis = [
     "bigquery.googleapis.com",
     "run.googleapis.com",
@@ -31,6 +31,16 @@ locals {
   )
   flyway_hash  = substr(sha256(join(",", [for f in local.flyway_files : "${f}:${filesha256("${local.flyway_dir}/${f}")}"])), 0, 12)
   flyway_image = "${var.region}-docker.pkg.dev/${local.project_id}/${var.flyway_repository_id}/flyway"
+
+  # Everything that goes into the API image; same idea as the Flyway hash. Local build
+  # output (build/, .gradle/, bin/) is not listed, so it never forces a rebuild.
+  api_dir = "${path.module}/../api"
+  api_files = concat(
+    ["Dockerfile", "build.gradle", "settings.gradle", "gradlew", "gradle/wrapper/gradle-wrapper.properties", "gradle/wrapper/gradle-wrapper.jar"],
+    [for f in sort(fileset("${path.module}/../api/src", "**")) : "src/${f}"],
+  )
+  api_hash  = substr(sha256(join(",", [for f in local.api_files : "${f}:${filesha256("${local.api_dir}/${f}")}"])), 0, 12)
+  api_image = "${var.region}-docker.pkg.dev/${local.project_id}/${var.api_repository_id}/calls-api"
 }
 
 resource "google_project" "demo" {
@@ -233,5 +243,88 @@ resource "terraform_data" "flyway_migrate" {
     google_bigquery_dataset.telecom,
     google_bigquery_dataset_iam_member.flyway_editor,
     google_project_iam_member.flyway_job_user,
+  ]
+}
+
+# Docker repo for the API image, separate from the Flyway one so each service account
+# only reads its own. Not `cloud-run-source-deploy`, which `gcloud run deploy --source`
+# creates and Terraform does not own.
+resource "google_artifact_registry_repository" "api" {
+  project       = google_project.demo.project_id
+  location      = var.region
+  repository_id = var.api_repository_id
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.apis]
+}
+
+# The service pulls its image as the calls-api account, so it needs read access here only.
+resource "google_artifact_registry_repository_iam_member" "calls_api_reader" {
+  project    = google_project.demo.project_id
+  location   = google_artifact_registry_repository.api.location
+  repository = google_artifact_registry_repository.api.repository_id
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${google_service_account.calls_api.email}"
+}
+
+# Builds the API image in Cloud Build and tags it with the content hash.
+resource "terraform_data" "api_build" {
+  triggers_replace = [local.api_hash, local.project_id]
+
+  provisioner "local-exec" {
+    # Same new-project permission propagation retry as the Flyway build.
+    command = <<-EOT
+      for i in 1 2 3 4 5 6 7 8 9 10; do
+        gcloud builds submit ${local.api_dir} --project ${google_project.demo.project_id} --region ${var.region} --tag ${local.api_image}:${local.api_hash} --quiet && exit 0
+        echo "build attempt $i failed, retrying in 30s"; sleep 30
+      done
+      exit 1
+    EOT
+  }
+
+  depends_on = [google_artifact_registry_repository.api]
+}
+
+# Resolves the tag to an immutable digest so the service pins the exact image.
+data "external" "api_digest" {
+  program = [
+    "sh", "-c",
+    "printf '{\"digest\":\"%s\"}' \"$(gcloud artifacts docker images describe ${local.api_image}:${local.api_hash} --format='value(image_summary.digest)')\"",
+  ]
+
+  depends_on = [terraform_data.api_build]
+}
+
+# Private: no allUsers invoker grant, so callers present an identity token. The project
+# owner can invoke it implicitly. Every code change ships through `terraform apply`.
+resource "google_cloud_run_v2_service" "calls_api" {
+  project  = google_project.demo.project_id
+  location = var.region
+  name     = "calls-api"
+  # Lets destroy and replace work; the project is thrown away anyway.
+  deletion_protection = false
+
+  template {
+    service_account = google_service_account.calls_api.email
+
+    containers {
+      image = "${local.api_image}@${data.external.api_digest.result.digest}"
+
+      env {
+        name  = "DATASET"
+        value = google_bigquery_dataset.telecom.dataset_id
+      }
+      env {
+        name  = "DATASET_LOCATION"
+        value = google_bigquery_dataset.telecom.location
+      }
+    }
+  }
+
+  # After the migration, so a fresh apply never serves traffic without the calls table.
+  depends_on = [
+    google_project_service.apis,
+    google_artifact_registry_repository_iam_member.calls_api_reader,
+    terraform_data.flyway_migrate,
   ]
 }

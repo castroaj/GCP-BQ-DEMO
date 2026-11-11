@@ -43,28 +43,26 @@ flowchart LR
   gcs[("GCS bucket<br/>&lt;project_id&gt;-loads")]
   gen["data-generator<br/>load_range.sh"]
   flyway["Flyway Cloud Run job<br/>flywayMigrate, flyway SA"]
-  deploy["gcloud run deploy<br/>--source"]
 
   client -->|"POST /api/v1/query, then<br/>GET /api/v1/query/{jobId}<br/>identity token"| api
   api -->|"creates and reads query jobs<br/>as calls-api SA"| bq
   gen -->|"upload Parquet shards"| gcs
   gcs -->|"LOAD DATA, then shards deleted"| bq
   flyway -->|"V1 creates the calls table"| bq
-  deploy -.->|"builds and deploys"| api
 
   classDef client fill:#fde7c8,stroke:#555,color:#1a1a1a
   classDef tool fill:#dbe4f0,stroke:#555,color:#1a1a1a
   classDef compute fill:#d3ecd3,stroke:#555,color:#1a1a1a
   classDef store fill:#f6e3a1,stroke:#555,color:#1a1a1a
   class client client
-  class gen,flyway,deploy tool
+  class gen,flyway tool
   class api compute
   class bq,gcs store
 ```
 
 ### Provisioning
 
-`terraform apply` creates the throwaway project and everything around it, builds the Flyway image and runs the Flyway Cloud Run job, which creates the `calls` table. The API's Cloud Run service is not Terraform's. Details: [docs/gcp/terraform.md](docs/gcp/terraform.md).
+`terraform apply` creates the throwaway project and everything around it, builds the Flyway and API images, runs the Flyway Cloud Run job (which creates the `calls` table) and then deploys the API's Cloud Run service. Details: [docs/gcp/terraform.md](docs/gcp/terraform.md).
 
 ```mermaid
 flowchart TD
@@ -78,13 +76,13 @@ flowchart TD
     sa_api{{"calls-api<br/>service account"}}
     sa_fly{{"flyway<br/>service account"}}
     repo{{"Artifact Registry repo<br/>flyway"}}
+    repo_api{{"Artifact Registry repo<br/>calls-api"}}
     job("Flyway Cloud Run job<br/>image pinned by digest")
+    api("Calls API Cloud Run service<br/>private, image pinned by digest")
   end
 
   subgraph other["Not managed by Terraform"]
     table[("calls table<br/>owned by Flyway")]
-    deploy["gcloud run deploy<br/>--source"]
-    api("Calls API")
   end
 
   tf -.->|creates| project
@@ -102,16 +100,20 @@ flowchart TD
   tf -.->|"executes after dataset<br/>and IAM exist"| job
   job -.->|creates| table
   ds --- table
-  deploy -.->|deploys| api
+  project -.-> repo_api
+  tf -.->|"gcloud builds submit<br/>pushes image"| repo_api
+  repo_api -.->|"image"| api
+  sa_api -.->|"runs as, reader on repo"| api
+  tf -.->|"creates after<br/>the migration"| api
 
   classDef tool fill:#dbe4f0,stroke:#555,color:#1a1a1a
   classDef compute fill:#d3ecd3,stroke:#555,color:#1a1a1a
   classDef store fill:#f6e3a1,stroke:#555,color:#1a1a1a
   classDef resource fill:#e3d5ee,stroke:#555,color:#1a1a1a
-  class tf,deploy tool
+  class tf tool
   class api,job compute
   class bucket,table store
-  class project,apis,ds,sa_api,sa_fly,repo resource
+  class project,apis,ds,sa_api,sa_fly,repo,repo_api resource
 ```
 
 ### Client request flow
@@ -146,7 +148,7 @@ sequenceDiagram
 
 ## Status
 
-Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). The build is tracked in a second GitHub issue map (label `wayfinder:map`). Built so far: Terraform, the Flyway V1 migration and its Cloud Run job and the seed data generator.
+Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). The build is tracked in a second GitHub issue map (label `wayfinder:map`). Built so far: Terraform (including the API service), the Flyway V1 migration and its Cloud Run job and the seed data generator.
 
 ## Planned layout
 
