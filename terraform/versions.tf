@@ -14,9 +14,3 @@ terraform {
     }
   }
 }
-
-# No provider-level `project`: the project is created by this config, so each
-# resource sets its own project explicitly.
-provider "google" {
-  region = var.region
-}

@@ -1,3 +1,9 @@
+# No provider-level `project`: the project is created by this config, so each
+# resource sets its own project explicitly.
+provider "google" {
+  region = var.region
+}
+
 # Deleted project ids can never be reused, so a fixed id would block
 # destroy-and-recreate. A random suffix gives every apply a fresh id.
 resource "random_id" "project_suffix" {
