@@ -321,6 +321,12 @@ resource "google_cloud_run_v2_service" "calls_api" {
     }
   }
 
+  # The provider reads service-level scaling back as zeros and plans to drop it on
+  # every apply; the prototype does not set it.
+  lifecycle {
+    ignore_changes = [scaling]
+  }
+
   # After the migration, so a fresh apply never serves traffic without the calls table.
   depends_on = [
     google_project_service.apis,
