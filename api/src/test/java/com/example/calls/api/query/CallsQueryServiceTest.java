@@ -28,6 +28,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+/**
+ * Unit tests for {@link CallsQueryService} against a mocked BigQuery client: query
+ * parameterization, truncation at the cap, column mapping and error translation.
+ */
 class CallsQueryServiceTest {
   private static final List<String> COLUMNS =
       List.of("callId", "calling", "called", "offhookDatetime", "durationSeconds", "callType",
@@ -54,6 +58,13 @@ class CallsQueryServiceTest {
   }
 
   /** A row with all 20 columns; filler columns are null unless overridden. */
+  /**
+   * Builds a row with all 20 columns; filler columns are {@code NULL} unless overridden.
+   *
+   * @param callId the {@code callId} value
+   * @param overrides column values that replace the defaults, by column name
+   * @return the row, addressable by column name
+   */
   private static FieldValueList row(String callId, Map<String, String> overrides) {
     var values = new ArrayList<FieldValue>();
     for (var column : COLUMNS) {
@@ -71,6 +82,11 @@ class CallsQueryServiceTest {
     return FieldValueList.of(values, SCHEMA);
   }
 
+  /**
+   * Makes the mocked client return the given number of rows.
+   *
+   * @param count how many rows the query returns
+   */
   private void returnRows(int count) {
     var rows = IntStream.range(0, count).mapToObj(i -> row("id-" + i, Map.of())).toList();
     var result = mock(TableResult.class);
@@ -82,6 +98,12 @@ class CallsQueryServiceTest {
     }
   }
 
+  /**
+   * Verifies that request values travel as named parameters and never appear in the SQL, and that
+   * one row more than the cap is requested.
+   *
+   * @throws Exception if the mocked query cannot be verified
+   */
   @Test
   void requestValuesAreQueryParametersNotSql() throws Exception {
     returnRows(0);
@@ -104,6 +126,9 @@ class CallsQueryServiceTest {
     assertThat(config.getNamedParameters().get("limit").getValue()).isEqualTo("1001");
   }
 
+  /**
+   * Verifies that no rows give {@code count} 0 and {@code truncated} false.
+   */
   @Test
   void emptyResultIsCountZero() {
     returnRows(0);
@@ -116,6 +141,9 @@ class CallsQueryServiceTest {
     assertThat(response.startDatetime()).isEqualTo("2026-01-15T00:00:00Z");
   }
 
+  /**
+   * Verifies that exactly {@value CallsQueryService#MAX_ROWS} rows are not reported as truncated.
+   */
   @Test
   void exactlyTheCapIsNotTruncated() {
     returnRows(CallsQueryService.MAX_ROWS);
@@ -126,6 +154,9 @@ class CallsQueryServiceTest {
     assertThat(response.truncated()).isFalse();
   }
 
+  /**
+   * Verifies that one row over the cap is dropped and {@code truncated} is set.
+   */
   @Test
   void moreThanTheCapIsTruncatedToTheCap() {
     returnRows(CallsQueryService.MAX_ROWS + 1);
@@ -137,6 +168,12 @@ class CallsQueryServiceTest {
     assertThat(response.calls().getLast().callId()).isEqualTo("id-999");
   }
 
+  /**
+   * Verifies column mapping, the UTC timestamp format and that {@code NULL} columns stay
+   * {@code null}.
+   *
+   * @throws Exception if the mocked query cannot be set up
+   */
   @Test
   void mapsColumnsAndKeepsNullsAsNull() throws Exception {
     var result = mock(TableResult.class);
@@ -157,6 +194,12 @@ class CallsQueryServiceTest {
     assertThat(call.callingCity()).isNull();
   }
 
+  /**
+   * Verifies that a {@link BigQueryException} becomes {@link ApiException.Code#UPSTREAM_ERROR}
+   * without its message.
+   *
+   * @throws Exception if the mocked query cannot be set up
+   */
   @Test
   void bigQueryFailureIsUpstreamError() throws Exception {
     when(bigQuery.query(any(QueryJobConfiguration.class)))

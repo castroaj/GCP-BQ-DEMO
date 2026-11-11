@@ -15,19 +15,45 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+/**
+ * Looks up Calls in the BigQuery table {@code telecom_analytics.calls}.
+ *
+ * <p>Every request value is passed as a named query parameter; only the server-side table name is
+ * formatted into the SQL. Rows are mapped by {@link CallRowMapper}.
+ *
+ * @see CallsController
+ */
 @Service
 public class CallsQueryService {
+  /** The most Calls a response carries; one more row is fetched to detect truncation. */
   static final int MAX_ROWS = 1000;
+
   private static final long MICROS_PER_SECOND = 1_000_000;
 
   private final BigQuery bigQuery;
   private final String dataset;
 
+  /**
+   * Creates the service.
+   *
+   * @param bigQuery the shared BigQuery client; its project holds the dataset
+   * @param dataset id of the dataset that contains the {@code calls} table, from {@code
+   *     calls.dataset}
+   */
   public CallsQueryService(BigQuery bigQuery, @Value("${calls.dataset}") String dataset) {
     this.bigQuery = bigQuery;
     this.dataset = dataset;
   }
 
+  /**
+   * Runs a lookup and returns at most {@value #MAX_ROWS} Calls.
+   *
+   * @param query the validated lookup
+   * @return the matching Calls sorted by {@code offhookDatetime} then {@code callId}, with {@code
+   *     truncated} set when more than {@value #MAX_ROWS} matched
+   * @throws ApiException with {@link Code#UPSTREAM_ERROR} if BigQuery fails or the call is
+   *     interrupted; the cause is kept for the log and not exposed to the caller
+   */
   public QueryResponse query(CallQuery query) {
     TableResult result = run(queryConfig(query));
 
@@ -49,7 +75,13 @@ public class CallsQueryService {
         calls);
   }
 
-  /** Every request value is a named parameter; only the server-side table name is formatted in. */
+  /**
+   * Builds the BigQuery job for a lookup, binding every request value as a named parameter.
+   *
+   * @param query the validated lookup
+   * @return the query with its parameters; a partition-date filter lets BigQuery read only the
+   *     requested days
+   */
   QueryJobConfiguration queryConfig(CallQuery query) {
     String table = "`" + bigQuery.getOptions().getProjectId() + "." + dataset + ".calls`";
     return QueryJobConfiguration.newBuilder(sql(table))
@@ -63,6 +95,14 @@ public class CallsQueryService {
         .build();
   }
 
+  /**
+   * Returns the lookup SQL for a table.
+   *
+   * @param table the fully qualified, back-quoted table name; server-side configuration, never
+   *     request input
+   * @return SQL with the named parameters {@code @telephoneNumber}, {@code @start}, {@code @end},
+   *     {@code @startDate}, {@code @endDate} and {@code @limit}
+   */
   static String sql(String table) {
     return """
         SELECT callId, calling, called, offhookDatetime, durationSeconds, callType, direction,
@@ -79,6 +119,14 @@ public class CallsQueryService {
         .formatted(table);
   }
 
+  /**
+   * Runs a query and waits for the result.
+   *
+   * @param config the query to run
+   * @return the result rows
+   * @throws ApiException with {@link Code#UPSTREAM_ERROR} if BigQuery fails or the thread is
+   *     interrupted (the interrupt flag is restored)
+   */
   private TableResult run(QueryJobConfiguration config) {
     try {
       return bigQuery.query(config);
@@ -90,12 +138,23 @@ public class CallsQueryService {
     }
   }
 
+  /**
+   * Converts an instant to a BigQuery {@code TIMESTAMP} parameter.
+   *
+   * @param instant the moment to bind
+   * @return the parameter, in microseconds since the epoch
+   */
   private static QueryParameterValue timestamp(Instant instant) {
     long micros = instant.getEpochSecond() * MICROS_PER_SECOND + instant.getNano() / 1000;
     return QueryParameterValue.timestamp(micros);
   }
 
-  /** The UTC calendar day, used to prune the table's daily partitions. */
+  /**
+   * Converts an instant to a BigQuery {@code DATE} parameter for partition pruning.
+   *
+   * @param instant the moment whose UTC calendar day to bind
+   * @return the parameter for that day
+   */
   private static QueryParameterValue utcDate(Instant instant) {
     return QueryParameterValue.date(instant.atZone(ZoneOffset.UTC).toLocalDate().toString());
   }

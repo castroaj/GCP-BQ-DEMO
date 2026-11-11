@@ -21,6 +21,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+/**
+ * Web-layer tests for {@link CallsController}: parameter handling and the HTTP shape of results
+ * and errors. The service and the BigQuery client are mocked.
+ */
 @SpringBootTest(properties = "calls.dataset=telecom_analytics")
 @AutoConfigureMockMvc
 class CallsControllerTest {
@@ -29,6 +33,15 @@ class CallsControllerTest {
   // Keeps the real client (and ADC) out of the test context.
   @MockitoBean BigQuery bigQuery;
 
+  /**
+   * Calls {@code GET /api/v1/query}, leaving out any parameter passed as {@code null}.
+   *
+   * @param number the {@code telephoneNumber} parameter, or {@code null} to omit it
+   * @param start the {@code startDatetime} parameter, or {@code null} to omit it
+   * @param end the {@code endDatetime} parameter, or {@code null} to omit it
+   * @return the result, for further assertions
+   * @throws Exception if the request cannot be performed
+   */
   private ResultActions query(String number, String start, String end) throws Exception {
     var req = get("/api/v1/query");
     if (number != null) req.param("telephoneNumber", number);
@@ -40,6 +53,12 @@ class CallsControllerTest {
   private static final String START = "2026-01-15T00:00:00Z";
   private static final String END = "2026-01-16T00:00:00Z";
 
+  /**
+   * Verifies that a valid request returns the service result and passes UTC instants on, even
+   * when the request used a {@code +05:00} offset.
+   *
+   * @throws Exception if the request cannot be performed
+   */
   @Test
   void validRequestReturnsServiceResultWithInstantsConvertedToUtc() throws Exception {
     var s = Instant.parse("2026-01-15T00:00:00Z");
@@ -59,6 +78,11 @@ class CallsControllerTest {
     verify(service).query(new CallQuery("15550100001", s, e));
   }
 
+  /**
+   * Verifies that missing parameters give {@code 400 MISSING_PARAMETER} without calling the service.
+   *
+   * @throws Exception if the request cannot be performed
+   */
   @Test
   void missingParametersAre400() throws Exception {
     query(null, START, END).andExpect(status().isBadRequest())
@@ -70,6 +94,12 @@ class CallsControllerTest {
     verifyNoInteractions(service);
   }
 
+  /**
+   * Verifies that malformed numbers and datetimes give {@code 400 INVALID_PARAMETER} without
+   * calling the service.
+   *
+   * @throws Exception if the request cannot be performed
+   */
   @Test
   void malformedParametersAre400() throws Exception {
     for (var number : List.of("+15550100001", "abc", "1", "1555010000112345678", "")) {
@@ -84,6 +114,11 @@ class CallsControllerTest {
     verifyNoInteractions(service);
   }
 
+  /**
+   * Verifies that a reversed or empty range gives {@code 400 INVALID_RANGE}.
+   *
+   * @throws Exception if the request cannot be performed
+   */
   @Test
   void endNotAfterStartIsInvalidRange() throws Exception {
     query("15550100001", END, START).andExpect(status().isBadRequest())
@@ -92,6 +127,11 @@ class CallsControllerTest {
         .andExpect(jsonPath("$.code").value("INVALID_RANGE"));
   }
 
+  /**
+   * Verifies that a BigQuery failure gives a {@code 502} problem whose body hides the cause.
+   *
+   * @throws Exception if the request cannot be performed
+   */
   @Test
   void upstreamFailureIs502WithoutDetails() throws Exception {
     when(service.query(any()))
@@ -104,6 +144,11 @@ class CallsControllerTest {
         .andExpect(jsonPath("$.detail").value("Query failed"));
   }
 
+  /**
+   * Verifies that an unexpected exception gives a generic {@code 500} problem.
+   *
+   * @throws Exception if the request cannot be performed
+   */
   @Test
   void unexpectedFailureIs500WithoutDetails() throws Exception {
     when(service.query(any())).thenThrow(new IllegalStateException("boom"));
@@ -113,6 +158,11 @@ class CallsControllerTest {
         .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
   }
 
+  /**
+   * Verifies that a validation error is an RFC 9457 problem with title, detail and {@code code}.
+   *
+   * @throws Exception if the request cannot be performed
+   */
   @Test
   void validationErrorIsAProblemDetailsBody() throws Exception {
     query(null, START, END).andExpect(status().isBadRequest())
@@ -123,6 +173,11 @@ class CallsControllerTest {
         .andExpect(jsonPath("$.code").value("MISSING_PARAMETER"));
   }
 
+  /**
+   * Verifies that Spring's own 404 uses the same problem shape.
+   *
+   * @throws Exception if the request cannot be performed
+   */
   @Test
   void unknownPathIsAlsoAProblemDetailsBody() throws Exception {
     mvc.perform(get("/api/v1/nope")).andExpect(status().isNotFound())
