@@ -70,7 +70,7 @@ flowchart LR
 
   subgraph managed["Managed by Terraform"]
     project{{"GCP project<br/>telecom-demo-&lt;random hex&gt;<br/>billing linked"}}
-    apis{{"Enabled APIs<br/>BigQuery, Cloud Run,<br/>Artifact Registry, Cloud Build"}}
+    apis{{"Enabled APIs (before any resource)<br/>BigQuery, Cloud Run,<br/>Artifact Registry, Cloud Build"}}
 
     subgraph bqBox["bigquery"]
       ds{{"Dataset<br/>telecom_analytics (US)"}}
@@ -93,19 +93,8 @@ flowchart LR
 
   tf -.->|creates| project
   project -.-> apis
-  apis -.->|"must be enabled first"| ds
-  apis -.-> bucket
-  apis -.-> repo
-  apis -.-> repo_api
-  apis -.-> job
-  apis -.-> api
-  project -.-> ds
-  project -.-> bucket
-  project -.-> sa_api
-  project -.-> sa_fly
   sa_api -.->|"jobUser (project)<br/>dataViewer (dataset)"| ds
   sa_fly -.->|"jobUser (project)<br/>dataEditor (dataset)"| ds
-  project -.-> repo
   tf -.->|"gcloud builds submit<br/>pushes image"| repo
   repo -.->|"image"| job
   sa_fly -.->|"runs as, reader on repo"| job
@@ -113,7 +102,6 @@ flowchart LR
   tf -.->|"executes after dataset<br/>and IAM exist"| job
   job -.->|creates| table
   ds --- table
-  project -.-> repo_api
   tf -.->|"gcloud builds submit<br/>pushes image"| repo_api
   repo_api -.->|"image"| api
   sa_api -.->|"runs as, reader on repo"| api
