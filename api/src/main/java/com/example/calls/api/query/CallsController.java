@@ -28,7 +28,9 @@ public class CallsController {
    * Returns the Calls of one number in a time range, {@code GET /api/v1/query}.
    *
    * <p>The parameters are read as raw strings so that {@link CallQuery#parse} owns validation and
-   * the error codes. All three are required.
+   * the error codes. All three are required. The names are given explicitly so binding does not
+   * depend on the compiler's {@code -parameters} flag, which IDE builds such as VS Code's Eclipse
+   * compiler do not set.
    *
    * @param telephoneNumber E.164 digits without the leading {@code +}; matches {@code calling} or
    *     {@code called}
@@ -41,9 +43,9 @@ public class CallsController {
    */
   @GetMapping("/query")
   public QueryResponse query(
-      @RequestParam(required = false) String telephoneNumber,
-      @RequestParam(required = false) String startDatetime,
-      @RequestParam(required = false) String endDatetime) {
+      @RequestParam(name = "telephoneNumber", required = false) String telephoneNumber,
+      @RequestParam(name = "startDatetime", required = false) String startDatetime,
+      @RequestParam(name = "endDatetime", required = false) String endDatetime) {
     return service.query(CallQuery.parse(telephoneNumber, startDatetime, endDatetime));
   }
 }

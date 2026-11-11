@@ -17,7 +17,10 @@ import com.google.cloud.bigquery.BigQuery;
  *
  * <p>The BigQuery client is mocked so the context starts without credentials.
  */
-@SpringBootTest(properties = "calls.dataset=telecom_analytics")
+@SpringBootTest(properties = {
+  "calls.dataset=telecom_analytics",
+  "management.endpoints.web.base-path=/"
+})
 @AutoConfigureMockMvc
 class HealthEndpointTest {
   @Autowired MockMvc mvc;
