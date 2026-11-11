@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate one UTC day of seed Calls as Snappy Parquet shards.
 
-    generate.py --date 2026-01-15 --out ./out [--rows 1000000] [--seed 42]
+    generate.py --date 2026-01-01 --out ./out [--rows 1000000] [--seed 42]
 
 Deterministic: the number pool depends only on --seed, the per-day stream on
 --seed and --date, so re-running a date gives byte-identical files.

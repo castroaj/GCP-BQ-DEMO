@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Submits a needle lookup to the private Calls API, polls until it finishes and prints
 # the full result (all matching Calls, up to the API's 1,000-row cap). Usage: scripts/needle_search.sh [telephoneNumber] [YYYY-MM-DD]
-# Defaults: the 25-call needle on 2026-01-15. The day must already be loaded
+# Defaults: the 25-call needle on 2026-01-01. The day must already be loaded
 # (data-generator/load_range.sh). Needles: 15550100000 (0), 15550100001 (1),
 # 15550100025 (25), 15550101500 (1000, truncated). Needs gcloud, terraform, curl, jq.
 set -euo pipefail
