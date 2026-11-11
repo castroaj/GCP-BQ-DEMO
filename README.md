@@ -81,7 +81,7 @@ flowchart TD
     api("Calls API Cloud Run service<br/>private, image pinned by digest")
   end
 
-  subgraph other["Not managed by Terraform"]
+  subgraph other["Created by Flyway, not in Terraform state"]
     table[("calls table<br/>owned by Flyway")]
   end
 
