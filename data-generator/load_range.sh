@@ -5,7 +5,7 @@
 #
 # Append only: re-loading a date doubles its rows. To redo a date first run
 #   DELETE FROM telecom_analytics.calls WHERE DATE(offhookDatetime) = '<date>'
-# Stops on the first failure. Uses $PYTHON (default python3); activate the venv first.
+# Deletes the uploaded shards from GCS after each successful load. Stops on the first failure. Uses $PYTHON (default python3); activate the venv first.
 set -euo pipefail
 
 : "${PROJECT:?set PROJECT (terraform -chdir=terraform output -raw project_id)}"
@@ -34,6 +34,8 @@ while [[ ! "$date" > "$end" ]]; do
   gcloud storage cp --project "$PROJECT" "$out"/part-*.parquet "$uri/"
   bq query --project_id="$PROJECT" --use_legacy_sql=false \
     "LOAD DATA INTO $DATASET.calls FROM FILES (format='PARQUET', uris=['$uri/part-*.parquet'])"
+  # Only reached when the load succeeded (set -e); a failed load leaves the shards for inspection.
+  gcloud storage rm --project "$PROJECT" --recursive "$uri"
   rm -rf "$out"; trap - EXIT
   date="$(next_day "$date")"
 done

@@ -56,7 +56,7 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 - Explicit Parquet schema: strings, UTC microsecond timestamp for `offhookDatetime`, int64 `durationSeconds`, bool for the two flags, `decimal(38,9)` for `costUsd`.
 - Upload to `gs://<bucket>/seed/calls/date=YYYY-MM-DD/part-NNNN.parquet` with `gcloud storage cp`, then `LOAD DATA INTO telecom_analytics.calls FROM FILES (format='PARQUET', uris=[...])` via `bq query --use_legacy_sql=false`. The bucket is the Terraform one (this replaces #7's `-seed` bucket name).
 - Append only, no dedupe: re-loading a date doubles its rows. Manual cleanup: `DELETE FROM telecom_analytics.calls WHERE DATE(offhookDatetime) = '<date>'`. The load statement is a data step, not a migration.
-- `data-generator/load_range.sh <start> <end>` loops over dates: generate, upload, load, delete local files; stops on the first failure. It fails fast if `PROJECT` or `BUCKET` is unset; `DATASET` defaults to `telecom_analytics`. A month is about 30M rows (estimate).
+- `data-generator/load_range.sh <start> <end>` loops over dates: generate, upload, load, then delete the local files and the uploaded GCS shards (only after a successful load); stops on the first failure. It fails fast if `PROJECT` or `BUCKET` is unset; `DATASET` defaults to `telecom_analytics`. A month is about 30M rows (estimate).
 
 ## API ([#6](https://github.com/castroaj/GCP-BQ-DEMO/issues/6), [#8](https://github.com/castroaj/GCP-BQ-DEMO/issues/8), [#4](https://github.com/castroaj/GCP-BQ-DEMO/issues/4))
 
