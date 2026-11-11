@@ -65,12 +65,11 @@ flowchart LR
 `terraform apply` creates the throwaway project and everything around it, builds the Flyway and API images, runs the Flyway Cloud Run job (which creates the `calls` table) and then deploys the API's Cloud Run service. Details: [docs/gcp/terraform.md](docs/gcp/terraform.md).
 
 ```mermaid
-flowchart TD
+flowchart LR
   tf["terraform apply"]
 
   subgraph managed["Managed by Terraform"]
-    project{{"GCP project<br/>telecom-demo-&lt;random hex&gt;<br/>billing linked"}}
-    apis{{"Enabled APIs<br/>BigQuery, Cloud Run,<br/>Artifact Registry, Cloud Build"}}
+    project{{"GCP project<br/>telecom-demo-&lt;random hex&gt;<br/>billing linked, APIs enabled"}}
 
     subgraph bqBox["bigquery"]
       ds{{"Dataset<br/>telecom_analytics (US)"}}
@@ -78,39 +77,22 @@ flowchart TD
       table[("calls table<br/>created by Flyway,<br/>not in Terraform state")]
 
       subgraph flywayBox["flyway"]
-        sa_fly{{"flyway<br/>service account"}}
-        repo{{"Artifact Registry repo<br/>flyway"}}
-        job("Flyway Cloud Run job<br/>image pinned by digest")
+        job("Flyway Cloud Run job<br/>flyway SA, image from the<br/>flyway repo, pinned by digest")
       end
     end
 
     subgraph apiBox["api"]
-      sa_api{{"calls-api<br/>service account"}}
-      repo_api{{"Artifact Registry repo<br/>calls-api"}}
-      api("Calls API Cloud Run service<br/>private, image pinned by digest")
+      api("Calls API Cloud Run service<br/>private, calls-api SA, image from the<br/>calls-api repo, pinned by digest")
     end
   end
 
   tf -.->|creates| project
-  project -.-> apis
-  project -.-> ds
-  project -.-> bucket
-  project -.-> sa_api
-  project -.-> sa_fly
-  sa_api -.->|"jobUser (project)<br/>dataViewer (dataset)"| ds
-  sa_fly -.->|"jobUser (project)<br/>dataEditor (dataset)"| ds
-  project -.-> repo
-  tf -.->|"gcloud builds submit<br/>pushes image"| repo
-  repo -.->|"image"| job
-  sa_fly -.->|"runs as, reader on repo"| job
-  tf -.->|"executes after dataset<br/>and IAM exist"| job
+  tf -.->|"builds image, then runs it<br/>once dataset and IAM exist"| job
+  tf -.->|"builds image, then creates it<br/>after the migration"| api
+  job -.->|"jobUser (project)<br/>dataEditor (dataset)"| ds
+  api -.->|"jobUser (project)<br/>dataViewer (dataset)"| ds
   job -.->|creates| table
   ds --- table
-  project -.-> repo_api
-  tf -.->|"gcloud builds submit<br/>pushes image"| repo_api
-  repo_api -.->|"image"| api
-  sa_api -.->|"runs as, reader on repo"| api
-  tf -.->|"creates after<br/>the migration"| api
 
   classDef tool fill:#dbe4f0,stroke:#555,color:#1a1a1a
   classDef compute fill:#d3ecd3,stroke:#555,color:#1a1a1a
@@ -119,7 +101,7 @@ flowchart TD
   class tf tool
   class api,job compute
   class bucket,table store
-  class project,apis,ds,sa_api,sa_fly,repo,repo_api resource
+  class project,ds resource
 ```
 
 ### Client request flow
