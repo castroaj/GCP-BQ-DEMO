@@ -11,7 +11,7 @@ A **strictly non-production prototype** that explores BigQuery and Cloud Run for
 
 ## Status
 
-Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). The build is tracked in a second GitHub issue map (label `wayfinder:map`). Built so far: Terraform and the Flyway V1 migration.
+Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). The build is tracked in a second GitHub issue map (label `wayfinder:map`). Built so far: Terraform, the Flyway V1 migration and the seed data generator.
 
 ## Planned layout
 
@@ -19,7 +19,7 @@ Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). 
 |---|---|
 | `api/` | Spring Boot API (Gradle, single module) |
 | `flyway/` | Flyway Gradle project and `sql/V1__create_calls.sql` |
-| `data-generator/` | Python generator for synthetic Calls (Parquet) |
+| `data-generator/` | Python generator and loader for synthetic Calls (Parquet) |
 | `terraform/` | Terraform for the throwaway GCP project |
 | `docs/gcp/` | GCP project and service account setup |
 | `docs/adr/` | Architecture decision records |
@@ -34,6 +34,10 @@ _Usage examples to be added once the API exists._
 
 - Terraform (recommended): [docs/gcp/terraform.md](docs/gcp/terraform.md)
 - Manual alternative: [GCP project setup](docs/gcp/project-setup.md), [API service account](docs/gcp/api-service-account.md)
+
+## Loading seed data
+
+Generate and load synthetic Calls into BigQuery with `data-generator/load_range.sh`: [docs/data-loading.md](docs/data-loading.md).
 
 ## Teardown
 
