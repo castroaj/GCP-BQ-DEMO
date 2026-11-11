@@ -33,7 +33,7 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 
 `telecom_analytics.calls`, 20 camelCase columns.
 
-- Real Call fields, all `NOT NULL`: `callId` STRING (UUID), `calling` STRING (E.164), `called` STRING (E.164), `offhookDatetime` TIMESTAMP (UTC), `durationSeconds` INT64 (0 when missed).
+- Real Call fields, all `NOT NULL`: `callId` STRING (UUID), `calling` STRING, `called` STRING (E.164 digits without the leading `+`, e.g. `15551234567`; the `+` is stripped at ingestion), `offhookDatetime` TIMESTAMP (UTC), `durationSeconds` INT64 (0 when missed).
 - 15 nullable filler columns: `callType`, `direction`, `callStatus`, `callingCarrier`, `calledCarrier`, `callingCountryCode`, `calledCountryCode`, `callingCity`, `calledCity`, `cellTowerId`, `networkType`, `codec` (STRING); `isRoaming`, `isInternational` (BOOL); `costUsd` (NUMERIC).
 - Partitioned daily on `DATE(offhookDatetime)`, clustered on `calling`, `called`.
 
@@ -50,9 +50,9 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 ## Seed data ([#7](https://github.com/castroaj/GCP-BQ-DEMO/issues/7))
 
 - `data-generator/generate.py --date YYYY-MM-DD --out ./out [--rows 1000000] [--seed 42]` writes one UTC day: 1M rows as about 10 Snappy Parquet shards (`pyarrow`, `numpy`, plain venv and `requirements.txt`; no Faker).
-- One shared pool of 5,000 E.164 numbers (`+1` plus 10 digits, skewed activity, `calling` != `called`) derived from the base seed, so numbers recur across days. Per-day seed derives from base seed and date, so re-running a date gives byte-identical files.
+- One shared pool of 5,000 E.164 numbers (`1` plus 10 digits, no `+`, skewed activity, `calling` != `called`) derived from the base seed, so numbers recur across days. Per-day seed derives from base seed and date, so re-running a date gives byte-identical files.
 - Duration is 0 for missed, busy or failed Calls, otherwise skewed with a median of about 90 s. Filler columns come from small fixed lists with 5-20% nulls. `costUsd` derives from duration.
-- Fixed test-needle numbers appear a known number of times (for example 0, 1, 25) on every generated day.
+- Fixed test-needle numbers appear a known number of times on every generated day: `15550100000` (0), `15550100001` (1), `15550100025` (25), `15550101500` (1,500, over the API cap, to exercise `truncated`). They sit outside the pool, so the counts are exact.
 - Explicit Parquet schema: strings, UTC microsecond timestamp for `offhookDatetime`, int64 `durationSeconds`, bool for the two flags, `decimal(38,9)` for `costUsd`.
 - Upload to `gs://<bucket>/seed/calls/date=YYYY-MM-DD/part-NNNN.parquet` with `gcloud storage cp`, then `LOAD DATA INTO telecom_analytics.calls FROM FILES (format='PARQUET', uris=[...])` via `bq query --use_legacy_sql=false`. The bucket is the Terraform one (this replaces #7's `-seed` bucket name).
 - Append only, no dedupe: re-loading a date doubles its rows. Manual cleanup: `DELETE FROM telecom_analytics.calls WHERE DATE(offhookDatetime) = '<date>'`. The load statement is a data step, not a migration.
@@ -62,7 +62,7 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 
 - Endpoints: `GET /api/v1/query` and `GET /health`. No write endpoints.
 - Request, all required query parameters:
-  - `telephoneNumber`: E.164 (`+` URL-encoded as `%2B`); matches Calls where `calling` or `called` equals it. No normalization.
+  - `telephoneNumber`: E.164 digits without the leading `+` (e.g. `15551234567`); matches Calls where `calling` or `called` equals it. No normalization.
   - `startDatetime`, `endDatetime`: ISO 8601 with an explicit UTC offset, applied to `offhookDatetime`. Start inclusive, end exclusive, end after start.
 - `200` body: `{ telephoneNumber, startDatetime, endDatetime, count, truncated, calls[] }`. Each call has all 20 columns (camelCase, nulls as JSON `null`, timestamps in UTC ISO 8601), sorted by `offhookDatetime` then `callId`. Fixed cap of 1,000 rows; `truncated` is `true` when more matched. No pagination. An empty result is `200` with `count: 0`.
 - Errors: `400` for missing or malformed parameters or an invalid range, `502` for a BigQuery failure, `500` otherwise. The body is always `{ "error": "<CODE>", "message": "..." }` with codes `MISSING_PARAMETER`, `INVALID_PARAMETER`, `INVALID_RANGE`, `UPSTREAM_ERROR`, `INTERNAL_ERROR`. No BigQuery details or stack traces in bodies; log them server-side.
