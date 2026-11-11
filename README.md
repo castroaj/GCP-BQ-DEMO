@@ -1,13 +1,10 @@
 # gcp-cloud-run-big-query-template
 
-A **strictly non-production prototype** that explores BigQuery and Cloud Run for telecom analytics. See `GLOSSARY.md` for domain terms.
-
-> Work in progress. This README is updated as the project is built.
-
 ## Purpose
 
 - A BigQuery table of phone **Calls** (`telecom_analytics.calls`), seeded with generated data and created by Flyway, which runs as a Cloud Run job.
 - A stateless Cloud Run API (Spring Boot, Java 21) that turns structured requests into parameterized BigQuery jobs: `POST` submits a lookup and returns a job id, and `GET` fetches the result by that id. The API keeps no state; the BigQuery job is the state.
+- See `GLOSSARY.md` for domain terms.
 
 ## Architecture
 
@@ -164,9 +161,8 @@ Planning is done; the decisions are summarized in [docs/spec.md](docs/spec.md). 
 
 ## API
 
-`POST /api/v1/query` with `telephoneNumber`, `startDatetime`, `endDatetime` submits a lookup and returns a job id; `GET /api/v1/query/{jobId}` fetches its status and result; `GET /health`. Why it is asynchronous: [docs/adr/0001-async-query-via-bigquery-job-id.md](docs/adr/0001-async-query-via-bigquery-job-id.md).
-
-Usage examples, parameters, response and error shapes: [docs/api-usage.md](docs/api-usage.md). Deploy and teardown: [docs/gcp/api-deployment.md](docs/gcp/api-deployment.md).
+- Usage (endpoints, parameters, response and error shapes, examples): [docs/api-usage.md](docs/api-usage.md)
+- Deploy and teardown: [docs/gcp/api-deployment.md](docs/gcp/api-deployment.md)
 
 ## Setup
 
