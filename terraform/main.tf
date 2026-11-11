@@ -151,7 +151,15 @@ resource "terraform_data" "flyway_build" {
   triggers_replace = [local.flyway_hash, local.project_id]
 
   provisioner "local-exec" {
-    command = "gcloud builds submit ${local.flyway_dir} --project ${google_project.demo.project_id} --region ${var.region} --tag ${local.flyway_image}:${local.flyway_hash} --quiet"
+    # A brand-new project's owner grant and API enablement take a few minutes to
+    # propagate, so the first attempts can fail with PERMISSION_DENIED. Retry for ~5 min.
+    command = <<-EOT
+      for i in 1 2 3 4 5 6 7 8 9 10; do
+        gcloud builds submit ${local.flyway_dir} --project ${google_project.demo.project_id} --region ${var.region} --tag ${local.flyway_image}:${local.flyway_hash} --quiet && exit 0
+        echo "build attempt $i failed, retrying in 30s"; sleep 30
+      done
+      exit 1
+    EOT
   }
 
   depends_on = [google_artifact_registry_repository.flyway]

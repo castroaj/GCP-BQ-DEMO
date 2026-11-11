@@ -90,6 +90,8 @@ The first shows `roles/bigquery.jobUser`. The second shows the dataset grant fro
 | Job | `google_cloud_run_v2_job.flyway`, image pinned by digest, env `PROJECT` and `DATASET`, runs as `flyway` (reader on the repo only). ADC comes from the attached account. |
 | Trigger | `terraform_data.flyway_migrate` executes the job after the dataset, the `flyway` IAM bindings and the job exist. Terraform owns the first migration. |
 
+On a fresh project the build step retries for about five minutes: the owner grant and API enablement can take that long to propagate, and until then `gcloud builds submit` fails with `PERMISSION_DENIED ... serviceUsageConsumer`.
+
 A new migration reaches the job by editing `flyway/sql/` and running `terraform apply`: the hash changes, the image is rebuilt, the new digest changes the job and re-triggers the execution. A second run with nothing pending is a no-op. Re-run by hand with:
 
 ```sh
