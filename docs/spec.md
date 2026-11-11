@@ -25,7 +25,8 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 - Terraform in `terraform/` creates and destroys the whole throwaway project: project id `telecom-demo-<random hex>` (deleted ids are never reusable), billing link, APIs (BigQuery, Cloud Run, Artifact Registry, Cloud Build), the empty `telecom_analytics` dataset (location `US`), the GCS bucket `<project_id>-loads`, and the `calls-api` and `flyway` service accounts with their IAM.
 - Cloud Run region `us-east4`.
 - State is local and gitignored; secrets come from an untracked `terraform.tfvars`. `terraform destroy` removes everything in one pass.
-- Not managed by Terraform: the `calls` table (Flyway) and the Cloud Run service (`gcloud run deploy --source`).
+- The Flyway Cloud Run job and its image (Artifact Registry repo, Cloud Build) are managed by Terraform, which executes the job so a fresh apply creates the `calls` table.
+- Not managed by Terraform: the `calls` table itself (Flyway) and the Cloud Run service (`gcloud run deploy --source`).
 - Scripts take `PROJECT`, `BUCKET` and `DATASET` environment variables, set from `terraform -chdir=terraform output -raw project_id | bucket_name | dataset_id`. No wrapper script.
 - Details: [docs/gcp/terraform.md](gcp/terraform.md).
 
@@ -42,7 +43,7 @@ Summary of the decisions from the first Wayfinder map (planning, closed). It is 
 - Flyway owns table creation. `V1__create_calls.sql` creates `calls` from the schema above. There is no manual `bq` table.
 - Wiring: Gradle plugin `org.flywaydb.flyway` 13.12.1, with `flyway-gcp-bigquery` and Google's Maven-published `google-cloud-bigquery-jdbc:1.9.0:all` on the buildscript classpath. The driver class must be set explicitly (`com.google.cloud.bigquery.jdbc.BigQueryDriver`) and the JDBC URL needs `EnableSession=1`.
 - Auth: Application Default Credentials (`OAuthType=3`). It runs as the human user. Moving to the `flyway` service account is a follow-up ([#17](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/17)).
-- Run by hand after `terraform apply`: `gcloud auth application-default set-quota-project $PROJECT`, `./gradlew --stop`, then `./gradlew flywayMigrate`. The stale quota project and the cached Gradle daemon are the usual failure. Terraform-triggered Flyway is a follow-up ([#18](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/18)).
+- Run by hand after `terraform apply`: `gcloud auth application-default set-quota-project $PROJECT`, `./gradlew --stop`, then `./gradlew flywayMigrate`. The stale quota project and the cached Gradle daemon are the usual failure. Terraform also runs it as a Cloud Run job as the `flyway` service account ([#44](https://github.com/castroaj/gcp-cloud-run-big-query-template/issues/44)); see [docs/gcp/flyway-service-account.md](gcp/flyway-service-account.md#flyway-as-a-cloud-run-job).
 - No DDL transactions: a failed migration can leave partial changes. `flyway_schema_history` lives in the dataset.
 - Fallback, documented only: adopt a hand-made table with `flywayBaseline` and `baselineVersion=1` (verified in the spike).
 - Details: [docs/gcp/flyway-service-account.md](gcp/flyway-service-account.md).

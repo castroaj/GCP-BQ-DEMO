@@ -42,3 +42,9 @@ variable "dataset_location" {
   type        = string
   default     = "US"
 }
+
+variable "flyway_repository_id" {
+  description = "Artifact Registry Docker repository for the Flyway job image."
+  type        = string
+  default     = "flyway"
+}

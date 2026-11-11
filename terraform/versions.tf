@@ -7,6 +7,11 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+    # Reads the Flyway image digest after the build step.
+    external = {
+      source  = "hashicorp/external"
+      version = "~> 2.3"
+    }
     # Only used to generate the project id suffix.
     random = {
       source  = "hashicorp/random"
