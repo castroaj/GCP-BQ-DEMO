@@ -2,3 +2,12 @@
 .terraform/
 terraform.tfvars
 .secrets/
+flyway/.gradle/
+flyway/build/
+data-generator/.venv/
+data-generator/out/
+__pycache__/
+api/.gradle/
+api/build/
+api/bin/
+.vscode/settings.json
