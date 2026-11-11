@@ -33,6 +33,7 @@ _Usage examples to be added once the API exists._
 ## Setup
 
 - Terraform (recommended): [docs/gcp/terraform.md](docs/gcp/terraform.md)
+- API deploy and teardown: [docs/gcp/api-deployment.md](docs/gcp/api-deployment.md)
 - Manual alternative: [GCP project setup](docs/gcp/project-setup.md), [API service account](docs/gcp/api-service-account.md)
 
 ## Loading seed data
