@@ -8,7 +8,7 @@
 # For each date in [start, end] (both inclusive) it:
 #   1. generates the day's Parquet shards locally (generate.py),
 #   2. uploads them to gs://$BUCKET/seed/calls/date=<date>/,
-#   3. loads them into $DATASET.calls with a BigQuery LOAD DATA statement,
+#   3. loads them into $DATASET.$TABLE with a BigQuery LOAD DATA statement,
 #   4. deletes the uploaded shards and the local files.
 #
 # Environment:
@@ -17,6 +17,7 @@
 #   BUCKET   (required) GCS bucket for the shards,
 #            e.g. $(terraform -chdir=terraform output -raw bucket_name)
 #   DATASET  (optional) BigQuery dataset; default: telecom_analytics
+#   TABLE    (optional) BigQuery table loaded into; default: calls (recommended)
 #   PYTHON   (optional) Python interpreter; default: python3
 #            (activate the venv from requirements.txt first)
 #
@@ -53,7 +54,15 @@ check_env() {
   : "${PROJECT:?set PROJECT (terraform -chdir=terraform output -raw project_id)}"
   : "${BUCKET:?set BUCKET (terraform -chdir=terraform output -raw bucket_name)}"
   DATASET="${DATASET:-telecom_analytics}"
+  TABLE="${TABLE:-calls}"
   PYTHON="${PYTHON:-python3}"
+}
+
+# Fail unless $DATASET.$TABLE already exists. LOAD DATA would otherwise silently
+# create a missing table with an inferred schema instead of the Flyway one.
+check_table() {
+  bq show --project_id="$PROJECT" --format=none "$DATASET.$TABLE" >/dev/null 2>&1 \
+    || die "table $DATASET.$TABLE not found in $PROJECT (run the Flyway migration first)"
 }
 
 # Validate the command-line dates: both look like YYYY-MM-DD and start <= end.
@@ -99,13 +108,13 @@ upload_day() {
   gcloud storage cp --project "$PROJECT" "$WORK_DIR"/part-*.parquet "$(gcs_uri "$1")/"
 }
 
-# Load the day's uploaded shards into the calls table (append).
+# Load the day's uploaded shards into $DATASET.$TABLE (append).
 #   $1 date
 load_day() {
   local uri
   uri="$(gcs_uri "$1")"
   bq query --project_id="$PROJECT" --use_legacy_sql=false \
-    "LOAD DATA INTO $DATASET.calls FROM FILES (format='PARQUET', uris=['$uri/part-*.parquet'])"
+    "LOAD DATA INTO $DATASET.$TABLE FROM FILES (format='PARQUET', uris=['$uri/part-*.parquet'])"
 }
 
 # Delete the day's uploaded shards from GCS. Only called after a successful load.
@@ -131,6 +140,7 @@ main() {
   [[ $# -eq 2 ]] || usage
   check_env
   validate_dates "$1" "$2"
+  check_table
 
   trap cleanup_local EXIT
 
